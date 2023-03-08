@@ -1,0 +1,12 @@
+{
+    "data_path" : [
+        "\\\\gssnas",
+        "bigdata",
+        "FWDT",
+        "DFischer",
+        "image_proc"
+    ],
+    "cases" : [
+        "0.1mmspacer_0.015ml_2"
+    ]
+}
