@@ -25,7 +25,8 @@ def get_image_files(config, case):
         logging.warning(f"No data found for case {case} at {dat_path}")
         return []
     images = glob.glob("*.tiff", root_dir=dat_path)
-    return images
+    tmp_images = [x.split(".")[0] for x in images]
+    return tmp_images
 
 def get_config():
     """
@@ -46,6 +47,7 @@ def calc_case_ratio():
         images.sort()
     convert2png(config, images, cas)
     substract_background(config, cas, images)
+    binarize_image(config, cas, images)
     
 
 def convert2png(config, images, case):
@@ -54,29 +56,31 @@ def convert2png(config, images, case):
     """
     for file in images:
         new_dir_path = os.path.join(*config["data_path"], "png_cases", case)
-        png_ims = glob.glob("*.png", root_dir=new_dir_path)
-        if png_ims != []:
-            logging.info(f"Already created png images for case {case}")
-            return
+        new_img_path = os.path.join(new_dir_path, file + ".png")
+        img_path = os.path.join(*config["data_path"], "raw_cases", case, file)
+        if os.path.exists(new_img_path):
+            continue
         else:
-            new_img_path = os.path.join(new_dir_path, file.split(".")[0]+ ".png")
-            img_path = os.path.join(*config["data_path"], "raw_cases", case, file)
-            if os.path.exists(new_img_path):
-                continue
-            else:
-                if os.path.exists(new_dir_path) is False:
-                    os.makedirs(new_dir_path)
-            im = Image.open(img_path)
-            logging.info(f"Saved image at {new_img_path}")
-            save_image(config, "png_cases", file, im, case)
+            if os.path.exists(new_dir_path) is False:
+                os.makedirs(new_dir_path)
+        # im = Image.open(img_path + ".tiff")
+        im = cv2.imread(img_path + ".tiff", cv2.IMREAD_GRAYSCALE)
+        logging.info(f"Saved image at {new_img_path}")
+        save_image(config, "png_cases", file, im, case)
 
 def read_image(config, folder, filename, case):
     """
     Function that reads an image from directory
     """
     dir_path = os.path.join(*config["data_path"], folder, case)
-    img_path = os.path.join(dir_path, filename.split(".")[0] + ".png")
-    img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+    img_path = os.path.join(dir_path, filename + ".png")
+    if os.path.exists(img_path) == False:
+        logging.error(f"Image {img_path} does not exsist")
+        exit()
+    else:
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE) 
+        # img = cv2.imread(img_path)
+
     return img
 
 def save_image(config, folder, filename, img, case):
@@ -87,8 +91,27 @@ def save_image(config, folder, filename, img, case):
     if os.path.exists(dir_path) is False:
         os.makedirs(dir_path)
         logging.info(f"Creating dir {folder} for case {case}")
-    img_path = os.path.join(*config["data_path"], folder, case, filename.split(".")[0] + ".png")
-    mlt.imsave(img_path, img)
+    img_path = os.path.join(*config["data_path"], folder, case, filename + ".png")
+    match folder:
+        case "png_cases":
+            cv2.imwrite(img_path, img)
+        case "binary":
+            cv2.imwrite(img_path, img)
+        case _:
+            mlt.imsave(img_path, img)
+
+def binarize_image(config, case, images):
+    """
+    Function that creates binarize images
+    """
+    for image in images[1:]:
+        new_img_path = os.path.join(*config["data_path"], "binary", case, image + ".png")
+        if os.path.exists(new_img_path):
+            continue
+        tmp_img = read_image(config, "background_removed", image, case)
+        th, im_gray_th_otsu = cv2.threshold(tmp_img, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+        logging.info(f"Theshold for image {image}: {th}")
+        save_image(config, "binary", image, im_gray_th_otsu, case)
 
 def substract_background(config, case, images):
     """
@@ -98,14 +121,13 @@ def substract_background(config, case, images):
 
     background = read_image(config, "png_cases", images[0], case)
     for img in images[1:]:
-        new_img_path = os.path.join(*config["data_path"], "background_removed", case, img.split(".")[0] + ".png")
+        new_img_path = os.path.join(*config["data_path"], "background_removed", case, img + ".png")
         if os.path.exists(new_img_path):
             continue
         tmp_img = read_image(config, "png_cases", img, case)
         img_diff = cv2.subtract(tmp_img, background)
         logging.info(f"Removed backgound for image {img}")
         save_image(config, "background_removed", img, img_diff, case)
-    return img_diff
 
 if __name__ == "__main__":
     calc_case_ratio()
