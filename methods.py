@@ -3,8 +3,7 @@ import sys
 import json
 import glob
 import logging
-
-from PIL import Image
+import shutil
 
 import numpy as np
 import pandas as pd
@@ -20,6 +19,11 @@ def get_image_files(config, case, folder):
     """
     Function that reads image names from folder
     """
+    dir_path = os.path.join(*config["data_path"])
+    if os.path.exists(dir_path) == False:
+        logging.error(f"Data directory {dir_path} doesn't exsist. Please check config for valid path.")
+        exit()
+
     dat_path = os.path.join(*config["data_path"], folder, case)
     if os.path.exists(dat_path) == False:
         logging.warning(f"No data found for case {case} at {dat_path}")
@@ -32,7 +36,19 @@ def get_image_files(config, case, folder):
         tmp_images = []
     else:
         tmp_images = [x.split(".")[0] for x in images]
-        tmp_images.sort()
+
+    if config["images"] != []:
+        img_subset = []
+        if not 0 in config["images"]:
+            config["images"].append(0)
+        for img in images:
+            number = int(img.split("_")[0])
+            if number in config["images"]:
+                img_subset.append(img)
+        tmp_images = img_subset
+
+    tmp_images = [x.split(".")[0] for x in tmp_images]
+    tmp_images.sort()
     return tmp_images
 
 def get_config():
@@ -50,15 +66,18 @@ def calc_case_ratio():
     """
     config = get_config()
     for cas in list(config["cases"]):
+        # Reseting cases for easier development
+        # reset_cases(config, cas)
         images = get_image_files(config, cas, "raw_cases")
         images.sort()
     convert2png(config, cas)
+    make_histos(config, cas, "png_cases")
     substract_background(config, cas)
+    make_histos(config, cas, "background_removed_cases")
     binarize_image(config, cas)
-    create_animation(config, cas, "png_cases")
-    create_animation(config, cas, "binary_cases")
-
-    
+    make_histos(config, cas, "binary_cases")
+    # create_animation(config, cas, "png_cases")
+    # create_animation(config, cas, "binary_cases")
 
 def convert2png(config, case):
     """
@@ -97,6 +116,12 @@ def read_image(config, folder, filename, case):
 
     return img
 
+def process_image(config, image_name):
+    """
+    Function that processes an image
+    """
+
+
 def save_image(config, folder, filename, img, case):
     """
     Function that saves images
@@ -121,43 +146,76 @@ def binarize_image(config, case):
     """
     images = get_image_files(config, case, "background_removed_cases")
 
-    for image in images[1:]:
+    if images == []:
+        logging.warning(f"No images found in folder background_removed_cases for case {case}")
+
+    for image in images:
         new_img_path = os.path.join(*config["data_path"], "binary_cases", case, image + ".png")
         if os.path.exists(new_img_path):
             continue
         tmp_img = read_image(config, "background_removed_cases", image, case)
-        th, im_gray_th_otsu = cv2.threshold(tmp_img, 128, 255, cv2.THRESH_BINARY |cv2.THRESH_OTSU)
+        # th, im_gray_th_otsu = cv2.threshold(tmp_img, 128, 255, cv2.THRESH_BINARY |cv2.THRESH_OTSU)
+        th, im_gray_th_otsu = cv2.threshold(tmp_img, 80, 255, cv2.THRESH_OTSU)
         logging.info(f"Theshold for image {image}: {th}")
         pixels, px_count = np.unique(im_gray_th_otsu, return_counts=True)
         white_ratio = px_count[1]/px_count[0]
-        if white_ratio < 0.1:
-            logging.info(f"White ratio for image {image}: {white_ratio}")
+        logging.info(f"White ratio for image {image}: {white_ratio}")
+        if white_ratio < 0.05:
             logging.warning(f"Binarization failed for image {image}")
             continue
+        im_gray_th_otsu = cv2.bitwise_not(im_gray_th_otsu)
         save_image(config, "binary_cases", image, im_gray_th_otsu, case)
 
 def substract_background(config, case):
     """
     Function that supstracts background from image
     """
-    logging.info(f"Substracting background from images for case {case}")
+    # logging.info(f"Substracting background from images for case {case}")
     images = get_image_files(config, case, "png_cases")
-    background = read_image(config, "png_cases", images[0], case)
+    imgs = config["images"]
+    config["images"] = [0]
+    background_img = get_image_files(config, case, "png_cases")
+    config["images"] = imgs
+    background = read_image(config, "png_cases", background_img[0], case)
     for img in images[1:]:
         new_img_path = os.path.join(*config["data_path"], "background_removed_cases", case, img + ".png")
         if os.path.exists(new_img_path):
             continue
         tmp_img = read_image(config, "png_cases", img, case)
-        img_diff = cv2.subtract(tmp_img, background)
+        img_diff = cv2.absdiff(tmp_img, background)
         logging.info(f"Removed backgound for image {img}")
         save_image(config, "background_removed_cases", img, img_diff, case)
+
+def make_histos(config, case, folder):
+    """
+    Function that creates histogram from image values
+    """
+    images = get_image_files(config, case, folder)
+
+    for name in images:
+        base_path=os.path.join(*config["data_path"], "histogramms", folder, case)
+        if os.path.exists(base_path) == False:
+            os.makedirs(base_path)
+        hist_path = os.path.join(base_path, name + "_hist.png")
+        if os.path.exists(hist_path):
+            logging.info(f"Already created histogramm for image {name} in folder {folder}")
+            continue
+        img = read_image(config, folder, name, case)
+        nums, counts = np.unique(img, return_counts=True)
+        plt.hist(nums, nums, weights=counts)   
+        plt.savefig(hist_path)
+        logging.info(f"Created histogramm for image {name} in folder {folder}")
+        plt.close()
 
 def create_animation(config, case, folder):
     """
     Function that creates animation video for images
     """
 
-    images = get_image_files(config, case, "raw_cases")
+    images = get_image_files(config, case, "png_cases")
+    if images == []:
+        logging.warning(f"No images found to create animation for case {case}.")
+        return
     animation_folder_path = os.path.join(*config["data_path"], "animations", case)
     dat_path = os.path.join(*config["data_path"], folder, case)
     frame = cv2.imread(os.path.join(dat_path, images[0]+ ".png"))
@@ -173,6 +231,20 @@ def create_animation(config, case, folder):
     cv2.destroyAllWindows()
     out.release()
     logging.info(f"Created {folder} video for case {case}")
+
+def reset_cases(config, case):
+    """
+    Function to delete all processed images
+    """
+    folders = ["background_removed_cases", "binary_cases", "histogramms"]
+    imgs = config["images"]
+    for fold in folders:
+        fld_path = os.path.join(*config["data_path"], fold)
+        if os.path.exists(fld_path) == False:
+            logging.warning(f"Folder {fld_path} does not exsist")
+        else:
+            shutil.rmtree(fld_path)
+            logging.info(f"Removed folder {fold}")
 
 if __name__ == "__main__":
     calc_case_ratio()

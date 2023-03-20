@@ -1,12 +1,15 @@
 {
     "data_path" : [
-        "\\\\gssnas",
-        "bigdata",
-        "FWDT",
-        "DFischer",
-        "image_proc"
+        "/home",
+        "daniel",
+        "Documents",
+        "instability-processing",
+        "data"
     ],
     "cases" : [
         "0.1mmspacer_0.015ml_2"
+    ],
+    "images" : [
+      
     ]
 }

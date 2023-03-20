@@ -11,3 +11,19 @@ Two things are calculted by the porcessing tool:
 The procedure implemented to get the ratio can be seen here:
 
 ![procedure](./doc/imgs/procedure.svg)
+
+A configuration might lool like this:
+```json
+{
+    "data_path" : [
+        "\\\\gssnas",
+        "bigdata",
+        "FWDT",
+        "DFischer",
+        "image_proc"
+    ],
+    "cases" : [
+        "0.1mmspacer_0.015ml_2"
+    ]
+}
+```
