@@ -5,6 +5,9 @@ import glob
 import logging
 import shutil
 
+from multiprocessing import Pool
+from functools import partial
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -70,34 +73,31 @@ def calc_case_ratio():
         # reset_cases(config, cas)
         images = get_image_files(config, cas, "raw_cases")
         images.sort()
-    convert2png(config, cas)
-    make_histos(config, cas, "png_cases")
-    substract_background(config, cas)
-    make_histos(config, cas, "background_removed_cases")
-    binarize_image(config, cas)
-    make_histos(config, cas, "binary_cases")
+        cpus = os.cpu_count()
+        p = Pool(cpus)
+        p.map(partial(process_image, config=config, cas=cas), images)
+        # for img in images:
+        #     status = process_image(img, config, cas)
+            
     # create_animation(config, cas, "png_cases")
     # create_animation(config, cas, "binary_cases")
 
-def convert2png(config, case):
+def convert2png(config, case, file) -> bool:
     """
     Function that converst .tiff images to .png images and stores them in png_cases folder for a case
     """
-    images = get_image_files(config, case, "raw_cases")
-
-    for file in images:
-        new_dir_path = os.path.join(*config["data_path"], "png_cases", case)
-        new_img_path = os.path.join(new_dir_path, file + ".png")
-        img_path = os.path.join(*config["data_path"], "raw_cases", case, file)
-        if os.path.exists(new_img_path):
-            continue
-        else:
-            if os.path.exists(new_dir_path) is False:
-                os.makedirs(new_dir_path)
-        # im = Image.open(img_path + ".tiff")
-        im = cv2.imread(img_path + ".tiff", cv2.IMREAD_GRAYSCALE)
-        logging.info(f"Saved image at {new_img_path}")
-        save_image(config, "png_cases", file, im, case)
+    
+    new_dir_path = os.path.join(*config["data_path"], "png_cases", case)
+    new_img_path = os.path.join(new_dir_path, file + ".png")
+    img_path = os.path.join(*config["data_path"], "raw_cases", case, file)
+    if os.path.exists(new_dir_path) is False:
+        os.makedirs(new_dir_path)
+        return True
+    # im = Image.open(img_path + ".tiff")
+    im = cv2.imread(img_path + ".tiff", cv2.IMREAD_GRAYSCALE)
+    logging.info(f"Saved image at {new_img_path}")
+    save_image(config, "png_cases", file, im, case)
+    return True
 
 def read_image(config, folder, filename, case):
     """
@@ -116,11 +116,55 @@ def read_image(config, folder, filename, case):
 
     return img
 
-def process_image(config, image_name):
+def process_image(img_name, config, cas) -> bool:
     """
     Function that processes an image
     """
+    status = False
+    status = convert2png(config, cas, img_name)
+    if status:
+        hist_stat = make_histo(config, cas, "png_cases", img_name)
+    else:
+        logging.error(f"Converting image {img_name} to png failed")
+        return status
+    status = substract_background(config, cas, img_name)
+    if status:
+        hist_stat = make_histo(config, cas, "background_removed_cases", img_name)
+    else:
+        logging.error(f"Background substraction for image {img_name} failed")
+        return status
 
+    if int(img_name.split("_")[0]) == 0:
+        return False
+
+    status = binarize_image(config, cas, img_name)
+    if status:
+        hist_stat = make_histo(config, cas, "binary_cases", img_name)
+    else:
+        logging.error(f"Binarization for image {img_name} failed")
+        return status
+
+    status = detect_circles(config, cas, "binary_cases", img_name)
+
+def detect_circles(config, case, folder, image_name):
+    """
+    Function to detect circle within a binary image
+    """
+    img = read_image(config, folder, image_name, case)
+
+    h, w = img.shape[:2]
+    # Detect circles in the image
+    circles = cv2.HoughCircles(img,
+        cv2.HOUGH_GRADIENT,
+        1.2,
+        20,
+        param1=50,
+        param2=30,
+        minRadius=100,
+        maxRadius=w
+    )
+    if circles != None:
+        logging.info(f"Circles = {circles}")
 
 def save_image(config, folder, filename, img, case):
     """
@@ -140,72 +184,65 @@ def save_image(config, folder, filename, img, case):
             # mlt.imsave(img_path, img)
             cv2.imwrite(img_path, img)
 
-def binarize_image(config, case):
+def binarize_image(config, case, img_name) -> bool:
     """
     Function that creates binarize images
     """
-    images = get_image_files(config, case, "background_removed_cases")
+    new_img_path = os.path.join(*config["data_path"], "binary_cases", case, img_name + ".png")
+    if os.path.exists(new_img_path):
+        return True
+    tmp_img = read_image(config, "background_removed_cases", img_name, case)
+    # th, im_gray_th_otsu = cv2.threshold(tmp_img, 128, 255, cv2.THRESH_BINARY |cv2.THRESH_OTSU)
+    th, im_gray_th_otsu = cv2.threshold(tmp_img, 80, 255, cv2.THRESH_OTSU)
+    logging.info(f"Theshold for image {img_name}: {th}")
+    pixels, px_count = np.unique(im_gray_th_otsu, return_counts=True)
+    white_ratio = px_count[1]/px_count[0]
+    logging.info(f"White ratio for image {img_name}: {white_ratio}")
+    if white_ratio < 0.05:
+        logging.warning(f"Binarization failed for img_name {img_name}")
+        return False
+    im_gray_th_otsu = cv2.bitwise_not(im_gray_th_otsu)
+    save_image(config, "binary_cases", img_name, im_gray_th_otsu, case)
+    return True
 
-    if images == []:
-        logging.warning(f"No images found in folder background_removed_cases for case {case}")
-
-    for image in images:
-        new_img_path = os.path.join(*config["data_path"], "binary_cases", case, image + ".png")
-        if os.path.exists(new_img_path):
-            continue
-        tmp_img = read_image(config, "background_removed_cases", image, case)
-        # th, im_gray_th_otsu = cv2.threshold(tmp_img, 128, 255, cv2.THRESH_BINARY |cv2.THRESH_OTSU)
-        th, im_gray_th_otsu = cv2.threshold(tmp_img, 80, 255, cv2.THRESH_OTSU)
-        logging.info(f"Theshold for image {image}: {th}")
-        pixels, px_count = np.unique(im_gray_th_otsu, return_counts=True)
-        white_ratio = px_count[1]/px_count[0]
-        logging.info(f"White ratio for image {image}: {white_ratio}")
-        if white_ratio < 0.05:
-            logging.warning(f"Binarization failed for image {image}")
-            continue
-        im_gray_th_otsu = cv2.bitwise_not(im_gray_th_otsu)
-        save_image(config, "binary_cases", image, im_gray_th_otsu, case)
-
-def substract_background(config, case):
+def substract_background(config, case, img_name) -> bool:
     """
     Function that supstracts background from image
     """
     # logging.info(f"Substracting background from images for case {case}")
-    images = get_image_files(config, case, "png_cases")
+    new_img_path = os.path.join(*config["data_path"], "background_removed_cases", case, img_name + ".png")
+    if os.path.exists(new_img_path):
+        return True
     imgs = config["images"]
     config["images"] = [0]
     background_img = get_image_files(config, case, "png_cases")
     config["images"] = imgs
     background = read_image(config, "png_cases", background_img[0], case)
-    for img in images[1:]:
-        new_img_path = os.path.join(*config["data_path"], "background_removed_cases", case, img + ".png")
-        if os.path.exists(new_img_path):
-            continue
-        tmp_img = read_image(config, "png_cases", img, case)
-        img_diff = cv2.absdiff(tmp_img, background)
-        logging.info(f"Removed backgound for image {img}")
-        save_image(config, "background_removed_cases", img, img_diff, case)
+    tmp_img = read_image(config, "png_cases", img_name, case)
+    img_diff = cv2.absdiff(tmp_img, background)
+    logging.info(f"Removed backgound for image {img_name}")
+    save_image(config, "background_removed_cases", img_name, img_diff, case)
+    return True
 
-def make_histos(config, case, folder):
+def make_histo(config, case, folder, name) -> bool:
     """
     Function that creates histogram from image values
     """
-    images = get_image_files(config, case, folder)
-
-    for name in images:
-        base_path=os.path.join(*config["data_path"], "histogramms", folder, case)
-        if os.path.exists(base_path) == False:
-            os.makedirs(base_path)
-        hist_path = os.path.join(base_path, name + "_hist.png")
-        if os.path.exists(hist_path):
-            logging.info(f"Already created histogramm for image {name} in folder {folder}")
-            continue
-        img = read_image(config, folder, name, case)
-        nums, counts = np.unique(img, return_counts=True)
-        plt.hist(nums, nums, weights=counts)   
-        plt.savefig(hist_path)
-        logging.info(f"Created histogramm for image {name} in folder {folder}")
-        plt.close()
+    
+    base_path=os.path.join(*config["data_path"], "histogramms", folder, case)
+    if os.path.exists(base_path) == False:
+        os.makedirs(base_path)
+    hist_path = os.path.join(base_path, name + "_hist.png")
+    if os.path.exists(hist_path):
+        logging.info(f"Already created histogramm for image {name} in folder {folder}")
+        return True
+    img = read_image(config, folder, name, case)
+    nums, counts = np.unique(img, return_counts=True)
+    plt.hist(nums, nums, weights=counts)   
+    plt.savefig(hist_path)
+    logging.info(f"Created histogramm for image {name} in folder {folder}")
+    plt.close()
+    return True
 
 def create_animation(config, case, folder):
     """

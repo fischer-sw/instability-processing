@@ -6,6 +6,13 @@
         "instability-processing",
         "data"
     ],
+    "results_path" : [
+        "/home",
+        "daniel",
+        "Documents",
+        "instability-processing",
+        "results"
+    ],
     "cases" : [
         "0.1mmspacer_0.015ml_2"
     ],
