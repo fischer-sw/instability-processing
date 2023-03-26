@@ -10,6 +10,7 @@ from functools import partial
 
 import numpy as np
 import pandas as pd
+import PIL
 import matplotlib.pyplot as plt
 import matplotlib.image as mlt
 import cv2
@@ -23,33 +24,34 @@ def get_image_files(config, case, folder):
     """
     Function that reads image names from folder
     """
-    dir_path = os.path.join(*config["data_path"])
+    dir_path = os.path.join(config["data_path"])
     if os.path.exists(dir_path) == False:
         logging.error(f"Data directory {dir_path} doesn't exsist. Please check config for valid path.")
         exit()
 
-    dat_path = os.path.join(*config["data_path"], folder, case)
+    dat_path = os.path.join(config["data_path"], folder, case)
     if os.path.exists(dat_path) == False:
         logging.warning(f"No data found for case {case} at {dat_path}")
         return []
-    images = glob.glob("*.tiff", root_dir=dat_path)
+    images = glob.glob(os.path.join(dat_path, "*.tiff"))
     if images == []:
-        images = glob.glob("*.png", root_dir=dat_path)
+        images = glob.glob(os.path.join(dat_path, "*.png"))
     if images == []:
         logging.warning(f"No images found in folder {folder} for case {case}")
         tmp_images = []
     else:
         tmp_images = [x.split(".")[0] for x in images]
 
+    logging.info('found {} images'.format(len(tmp_images)))
     if config["images"] != []:
         img_subset = []
         # append first image (background)
         # if not 0 in config["images"]:
         #     config["images"].append(0)
         for img in images:
-            number = int(img.split("_")[0])
+            number = int(os.path.basename(img).split("_")[0])
             if number in config["images"]:
-                img_subset.append(img)
+                img_subset.append(os.path.basename(img))
         tmp_images = img_subset
 
     tmp_images = [x.split(".")[0] for x in tmp_images]
@@ -94,9 +96,9 @@ def convert2png(config, case, file) -> bool:
     Function that converst .tiff images to .png images and stores them in png_cases folder for a case
     """
     
-    new_dir_path = os.path.join(*config["data_path"], "png_cases", case)
+    new_dir_path = os.path.join(config["data_path"], "png_cases", case)
     new_img_path = os.path.join(new_dir_path, file + ".png")
-    img_path = os.path.join(*config["data_path"], "raw_cases", case, file)
+    img_path = os.path.join(config["data_path"], "raw_cases", case, file)
     if os.path.exists(new_dir_path) is False:
         os.makedirs(new_dir_path)
         return True
@@ -110,16 +112,14 @@ def read_image(config, folder, filename, case):
     """
     Function that reads an image from directory
     """
-    dir_path = os.path.join(*config["data_path"], folder, case)
+    dir_path = os.path.join(config["data_path"], folder, case)
     img_path = os.path.join(dir_path, filename + ".png")
-    if os.path.exists(img_path) == False:
+    if os.path.exists(img_path):
+        img = cv2.imread(img_path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    else:
         logging.error(f"Image {img_path} does not exsist")
         exit()
-    else:
-        match folder:
-            case _:
-                img = cv2.imread(img_path)
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     return img
 
@@ -182,20 +182,31 @@ def save_image(config, folder, filename, img, case):
     """
     Function that saves images
     """
-    dir_path = os.path.join(*config["data_path"], folder, case)
+    dir_path = os.path.join(config["data_path"], folder, case)
     if os.path.exists(dir_path) is False:
         os.makedirs(dir_path)
         logging.info(f"Creating dir {folder} for case {case}")
-    img_path = os.path.join(*config["data_path"], folder, case, filename + ".png")
-    match folder:
-        case "png_cases":
-            cv2.imwrite(img_path, img)
-        case "binary":
-            cv2.imwrite(img_path, img)
-        case _:
-            # mlt.imsave(img_path, img)
-            cv2.imwrite(img_path, img)
+    img_path = os.path.join(config["data_path"], folder, case, filename + ".png")
+    cv2.imwrite(img_path, img)
 
+def crop(file_in, bbox, file_out):
+    from PIL import Image
+    image = Image.open(file_in)
+    crop = image.crop(box=bbox)
+    crop.save(file_out)
+
+def edges(file_in, file_out):
+    from PIL import Image, ImageFilter
+    image = Image.open(file_in)
+    result = image.filter(ImageFilter.FIND_EDGES)
+    result.save(file_out)
+
+def enhance(file_in, factor, file_out):
+    from PIL import Image, ImageEnhance
+    image = Image.open(file_in)
+    enhancer = ImageEnhance.Sharpness(image)
+    result = enhancer.enhance(factor)
+    result.save(file_out)
 
 def segment_camera(config, case, img_name):
     """
@@ -203,76 +214,83 @@ def segment_camera(config, case, img_name):
     """
 
     folder = "segmented_camera"
-    base_path=os.path.join(*config["data_path"], folder, case)
+    base_path=os.path.join(config["data_path"], folder, case)
     if os.path.exists(base_path) == False:
         os.makedirs(base_path)
-    new_img_path = os.path.join(*config["data_path"], folder, case, img_name + ".png")
+    new_img_path = os.path.join(config["data_path"], folder, case, img_name + ".png")
     if os.path.exists(new_img_path):
         return True
-    raw_img_path = os.path.join(*config["data_path"], "raw_cases", case, img_name + ".tiff")
-    reader = sitk.ImageFileReader()
-    reader.SetImageIO("TIFFImageIO")
-    reader.SetFileName(raw_img_path)
-    raw_img = reader.Execute()
 
-    # raw_img_path = os.path.join(*config["data_path"], "background_removed_cases", case, img_name + ".png")
-    # reader = sitk.ImageFileReader()
-    # reader.SetImageIO("PNGImageIO")
-    # reader.SetFileName(raw_img_path)
-    # raw_img = reader.Execute()
+    raw_img_path = os.path.join(config["data_path"], "png_cases", case, img_name + ".png")
+    if os.path.exists(raw_img_path):
+        reader = sitk.ImageFileReader()
+        reader.SetImageIO("PNGImageIO")
+        reader.SetFileName(raw_img_path)
+        raw_img = reader.Execute()
+    else:
+        raw_img_path = os.path.join(config["data_path"], "raw_cases", case, img_name + ".tiff")
+        reader = sitk.ImageFileReader()
+        reader.SetImageIO("TIFFImageIO")
+        reader.SetFileName(raw_img_path)
+        raw_img = reader.Execute()
 
-    x = 1250
-    y = 1080
+    crop(raw_img_path, (1000, 630, 1800, 1430), 'crop.png')
+    #factor = 10.0
+    #enhance('crop.png', factor, 'enhance_{}.png'.format(factor))
+    #reader.SetFileName('enhance_{}.png'.format(factor))
+    edges('crop.png', 'edges.png')
+    reader.SetFileName('crop.png')
+    crop_img = reader.Execute()
 
-    cam_seed = [(x, y)]
-
-    logging.info(f"Cam seed value: {raw_img.GetPixel(cam_seed[0])}")
+    crop_array = sitk.GetArrayFromImage(crop_img)
+    logging.info('crop shape {}'.format(crop_array.shape))
+    print(crop_array[450,:])
 
     cam_image = sitk.ConnectedThreshold(
-        image1=raw_img,
-        seedList=cam_seed,
+        image1=crop_img,
+        seedList=[(370,460)],
         lower=0,
-        upper=75,
+        upper=80,
         replaceValue=1
     )
     uni_vals = np.unique(sitk.GetArrayFromImage(cam_image))
     logging.info(f"Unique values {uni_vals}")
 
-    cam_proc_img = sitk.LabelOverlay(raw_img, cam_image)
-
+    cam_proc_img = sitk.LabelOverlay(crop_img, cam_image)
     
+    #gaussian = sitk.SmoothingRecursiveGaussianImageFilter()
+    #gaussian.SetSigma(float(40.0))
+    #blur_image = gaussian.Execute(raw_img)
 
-    gaussian = sitk.SmoothingRecursiveGaussianImageFilter()
-    gaussian.SetSigma(float(40.0))
-    blur_image = gaussian.Execute(raw_img)
-
-    caster = sitk.CastImageFilter()
-    caster.SetOutputPixelType(raw_img.GetPixelID())
-    blur_image = caster.Execute(blur_image)
+    #caster = sitk.CastImageFilter()
+    #caster.SetOutputPixelType(raw_img.GetPixelID())
+    #blur_image = caster.Execute(blur_image)
 
 
-    raw_img = raw_img - blur_image
+    # raw_img = raw_img - blur_image
     # raw_img = blur_image
 
-    insta_seed = [(1460,1090)]
-    px_val = raw_img.GetPixel(insta_seed[0])
+    insta_seed = [(570,460)]
+    px_val = crop_img.GetPixel(insta_seed[0])
     logging.info(f"Insta seed value: {px_val}")
 
     # uni_vals = np.unique(sitk.GetArrayFromImage(raw_img))
     # logging.info(f"Unique values blured img {uni_vals}")
 
-
+    # upper halt: [ 100, 224 ]
+    # lower right quadrant: [ 100, 230 ]
+    # lower left quad [ 100, 235 ]
     insta_image = sitk.ConnectedThreshold(
-        image1=raw_img,
+        image1=crop_img,
         seedList=insta_seed,
-        lower=px_val-20,
-        upper=px_val+10,
+        lower=100,
+        upper=224,
         replaceValue=2
     )
     uni_vals = np.unique(sitk.GetArrayFromImage(insta_image))
     logging.info(f"Unique values {uni_vals}")
 
-    insta_proc_img = sitk.LabelOverlay(raw_img, insta_image)
+    insta_proc_img = sitk.LabelOverlay(crop_img, insta_image)
 
     # sitk_show(raw_img)
 
@@ -280,9 +298,9 @@ def segment_camera(config, case, img_name):
     writer.SetFileName("cam_segmented.png")
     writer.Execute(cam_proc_img)
 
-    writer = sitk.ImageFileWriter()
-    writer.SetFileName("blur.png")
-    writer.Execute(blur_image)
+    #writer = sitk.ImageFileWriter()
+    #writer.SetFileName("crop.png")
+    #writer.Execute(crop_img)
 
     writer = sitk.ImageFileWriter()
     writer.SetFileName("insta_segmented.png")
@@ -296,7 +314,7 @@ def binarize_image(config, case, img_name) -> bool:
     """
     Function that creates binarize images
     """
-    new_img_path = os.path.join(*config["data_path"], "binary_cases", case, img_name + ".png")
+    new_img_path = os.path.join(config["data_path"], "binary_cases", case, img_name + ".png")
     if os.path.exists(new_img_path):
         return True
     tmp_img = read_image(config, "background_removed_cases", img_name, case)
@@ -318,7 +336,7 @@ def substract_background(config, case, img_name) -> bool:
     Function that supstracts background from image
     """
     # logging.info(f"Substracting background from images for case {case}")
-    new_img_path = os.path.join(*config["data_path"], "background_removed_cases", case, img_name + ".png")
+    new_img_path = os.path.join(config["data_path"], "background_removed_cases", case, img_name + ".png")
     if os.path.exists(new_img_path):
         return True
     imgs = config["images"]
@@ -337,7 +355,7 @@ def make_histo(config, case, folder, name) -> bool:
     Function that creates histogram from image values
     """
     
-    base_path=os.path.join(*config["data_path"], "histogramms", folder, case)
+    base_path=os.path.join(config["data_path"], "histogramms", folder, case)
     if os.path.exists(base_path) == False:
         os.makedirs(base_path)
     hist_path = os.path.join(base_path, name + "_hist.png")
@@ -361,8 +379,8 @@ def create_animation(config, case, folder):
     if images == []:
         logging.warning(f"No images found to create animation for case {case}.")
         return
-    animation_folder_path = os.path.join(*config["data_path"], "animations", case)
-    dat_path = os.path.join(*config["data_path"], folder, case)
+    animation_folder_path = os.path.join(config["data_path"], "animations", case)
+    dat_path = os.path.join(config["data_path"], folder, case)
     frame = cv2.imread(os.path.join(dat_path, images[0]+ ".png"))
 
     height, width, layers = frame.shape
@@ -384,7 +402,7 @@ def reset_cases(config, case):
     folders = ["background_removed_cases", "binary_cases", "histogramms"]
     imgs = config["images"]
     for fold in folders:
-        fld_path = os.path.join(*config["data_path"], fold)
+        fld_path = os.path.join(config["data_path"], fold)
         if os.path.exists(fld_path) == False:
             logging.warning(f"Folder {fld_path} does not exsist")
         else:

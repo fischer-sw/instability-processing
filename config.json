@@ -1,22 +1,10 @@
 {
-    "data_path" : [
-        "/home",
-        "daniel",
-        "Documents",
-        "instability-processing",
-        "data"
-    ],
-    "results_path" : [
-        "/home",
-        "daniel",
-        "Documents",
-        "instability-processing",
-        "results"
-    ],
+    "data_path" : "D:\\Data\\Daniel-Instability",
+    "results_path" : "D:\\Data\\Daniel-Instability\\results",
     "cases" : [
         "0.1mmspacer_0.015ml_2"
     ],
     "images" : [
-      25
+      35
     ]
 }
