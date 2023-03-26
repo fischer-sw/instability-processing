@@ -13,6 +13,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.image as mlt
 import cv2
+import SimpleITK as sitk
 
 # setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s")
@@ -42,8 +43,9 @@ def get_image_files(config, case, folder):
 
     if config["images"] != []:
         img_subset = []
-        if not 0 in config["images"]:
-            config["images"].append(0)
+        # append first image (background)
+        # if not 0 in config["images"]:
+        #     config["images"].append(0)
         for img in images:
             number = int(img.split("_")[0])
             if number in config["images"]:
@@ -73,11 +75,16 @@ def calc_case_ratio():
         # reset_cases(config, cas)
         images = get_image_files(config, cas, "raw_cases")
         images.sort()
-        cpus = os.cpu_count()
-        p = Pool(cpus)
-        p.map(partial(process_image, config=config, cas=cas), images)
-        # for img in images:
-        #     status = process_image(img, config, cas)
+
+        parallel = False
+
+        if parallel:
+            cpus = os.cpu_count()
+            p = Pool(cpus)
+            p.map(partial(process_image, config=config, cas=cas), images)
+        else:
+            for img in images:
+                status = process_image(img, config, cas)
             
     # create_animation(config, cas, "png_cases")
     # create_animation(config, cas, "binary_cases")
@@ -120,31 +127,36 @@ def process_image(img_name, config, cas) -> bool:
     """
     Function that processes an image
     """
-    status = False
-    status = convert2png(config, cas, img_name)
-    if status:
-        hist_stat = make_histo(config, cas, "png_cases", img_name)
-    else:
-        logging.error(f"Converting image {img_name} to png failed")
-        return status
-    status = substract_background(config, cas, img_name)
-    if status:
-        hist_stat = make_histo(config, cas, "background_removed_cases", img_name)
-    else:
-        logging.error(f"Background substraction for image {img_name} failed")
-        return status
 
-    if int(img_name.split("_")[0]) == 0:
-        return False
+    segment_camera(config, cas, img_name)
 
-    status = binarize_image(config, cas, img_name)
-    if status:
-        hist_stat = make_histo(config, cas, "binary_cases", img_name)
-    else:
-        logging.error(f"Binarization for image {img_name} failed")
-        return status
 
-    status = detect_circles(config, cas, "binary_cases", img_name)
+
+    # status = False
+    # status = convert2png(config, cas, img_name)
+    # if status:
+    #     hist_stat = make_histo(config, cas, "png_cases", img_name)
+    # else:
+    #     logging.error(f"Converting image {img_name} to png failed")
+    #     return status
+    # status = substract_background(config, cas, img_name)
+    # if status:
+    #     hist_stat = make_histo(config, cas, "background_removed_cases", img_name)
+    # else:
+    #     logging.error(f"Background substraction for image {img_name} failed")
+    #     return status
+
+    # if int(img_name.split("_")[0]) == 0:
+    #     return False
+
+    # status = binarize_image(config, cas, img_name)
+    # if status:
+    #     hist_stat = make_histo(config, cas, "binary_cases", img_name)
+    # else:
+    #     logging.error(f"Binarization for image {img_name} failed")
+    #     return status
+
+    # status = detect_circles(config, cas, "binary_cases", img_name)
 
 def detect_circles(config, case, folder, image_name):
     """
@@ -184,6 +196,102 @@ def save_image(config, folder, filename, img, case):
             # mlt.imsave(img_path, img)
             cv2.imwrite(img_path, img)
 
+
+def segment_camera(config, case, img_name):
+    """
+    Function that segements camera from the image and moves it to background
+    """
+
+    folder = "segmented_camera"
+    base_path=os.path.join(*config["data_path"], folder, case)
+    if os.path.exists(base_path) == False:
+        os.makedirs(base_path)
+    new_img_path = os.path.join(*config["data_path"], folder, case, img_name + ".png")
+    if os.path.exists(new_img_path):
+        return True
+    raw_img_path = os.path.join(*config["data_path"], "raw_cases", case, img_name + ".tiff")
+    reader = sitk.ImageFileReader()
+    reader.SetImageIO("TIFFImageIO")
+    reader.SetFileName(raw_img_path)
+    raw_img = reader.Execute()
+
+    # raw_img_path = os.path.join(*config["data_path"], "background_removed_cases", case, img_name + ".png")
+    # reader = sitk.ImageFileReader()
+    # reader.SetImageIO("PNGImageIO")
+    # reader.SetFileName(raw_img_path)
+    # raw_img = reader.Execute()
+
+    x = 1250
+    y = 1080
+
+    cam_seed = [(x, y)]
+
+    logging.info(f"Cam seed value: {raw_img.GetPixel(cam_seed[0])}")
+
+    cam_image = sitk.ConnectedThreshold(
+        image1=raw_img,
+        seedList=cam_seed,
+        lower=0,
+        upper=75,
+        replaceValue=1
+    )
+    uni_vals = np.unique(sitk.GetArrayFromImage(cam_image))
+    logging.info(f"Unique values {uni_vals}")
+
+    cam_proc_img = sitk.LabelOverlay(raw_img, cam_image)
+
+    
+
+    gaussian = sitk.SmoothingRecursiveGaussianImageFilter()
+    gaussian.SetSigma(float(40.0))
+    blur_image = gaussian.Execute(raw_img)
+
+    caster = sitk.CastImageFilter()
+    caster.SetOutputPixelType(raw_img.GetPixelID())
+    blur_image = caster.Execute(blur_image)
+
+
+    raw_img = raw_img - blur_image
+    # raw_img = blur_image
+
+    insta_seed = [(1460,1090)]
+    px_val = raw_img.GetPixel(insta_seed[0])
+    logging.info(f"Insta seed value: {px_val}")
+
+    # uni_vals = np.unique(sitk.GetArrayFromImage(raw_img))
+    # logging.info(f"Unique values blured img {uni_vals}")
+
+
+    insta_image = sitk.ConnectedThreshold(
+        image1=raw_img,
+        seedList=insta_seed,
+        lower=px_val-20,
+        upper=px_val+10,
+        replaceValue=2
+    )
+    uni_vals = np.unique(sitk.GetArrayFromImage(insta_image))
+    logging.info(f"Unique values {uni_vals}")
+
+    insta_proc_img = sitk.LabelOverlay(raw_img, insta_image)
+
+    # sitk_show(raw_img)
+
+    writer = sitk.ImageFileWriter()
+    writer.SetFileName("cam_segmented.png")
+    writer.Execute(cam_proc_img)
+
+    writer = sitk.ImageFileWriter()
+    writer.SetFileName("blur.png")
+    writer.Execute(blur_image)
+
+    writer = sitk.ImageFileWriter()
+    writer.SetFileName("insta_segmented.png")
+    writer.Execute(insta_proc_img)
+
+    writer = sitk.ImageFileWriter()
+    writer.SetFileName("raw.png")
+    writer.Execute(raw_img)
+
 def binarize_image(config, case, img_name) -> bool:
     """
     Function that creates binarize images
@@ -219,7 +327,7 @@ def substract_background(config, case, img_name) -> bool:
     config["images"] = imgs
     background = read_image(config, "png_cases", background_img[0], case)
     tmp_img = read_image(config, "png_cases", img_name, case)
-    img_diff = cv2.absdiff(tmp_img, background)
+    img_diff = cv2.absdiff(tmp_img, background) * 10
     logging.info(f"Removed backgound for image {img_name}")
     save_image(config, "background_removed_cases", img_name, img_diff, case)
     return True

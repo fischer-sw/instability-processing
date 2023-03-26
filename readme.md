@@ -36,3 +36,11 @@ A configuration might lool like this:
     ]
 }
 ```
+
+SimpleITK
+
+ConnectedThresholdImageFilter
+
+BinaryDilateImageFilter
+
+BinaryErodeImageFilter
