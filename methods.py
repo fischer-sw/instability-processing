@@ -78,7 +78,7 @@ def calc_case_ratio():
         images = get_image_files(config, cas, "raw_cases")
         images.sort()
 
-        parallel = False
+        parallel = True
 
         if parallel:
             cpus = os.cpu_count()
@@ -128,12 +128,9 @@ def process_image(img_name, config, cas) -> bool:
     Function that processes an image
     """
 
-    segment_camera(config, cas, img_name)
-
-
-
-    # status = False
-    # status = convert2png(config, cas, img_name)
+    # segment_camera(config, cas, img_name)
+    status = False
+    status = convert2png(config, cas, img_name)
     # if status:
     #     hist_stat = make_histo(config, cas, "png_cases", img_name)
     # else:
@@ -234,17 +231,18 @@ def segment_camera(config, case, img_name):
         reader.SetFileName(raw_img_path)
         raw_img = reader.Execute()
 
-    crop(raw_img_path, (1000, 630, 1800, 1430), 'crop.png')
+    # crop(raw_img_path, (1000, 630, 1800, 1430), 'crop.png')
+    crop(raw_img_path, (1000, 630, 1800, 1000), 'crop.png')
+
     #factor = 10.0
     #enhance('crop.png', factor, 'enhance_{}.png'.format(factor))
     #reader.SetFileName('enhance_{}.png'.format(factor))
-    edges('crop.png', 'edges.png')
+    # edges('crop.png', 'edges.png')
     reader.SetFileName('crop.png')
     crop_img = reader.Execute()
 
     crop_array = sitk.GetArrayFromImage(crop_img)
     logging.info('crop shape {}'.format(crop_array.shape))
-    print(crop_array[450,:])
 
     cam_image = sitk.ConnectedThreshold(
         image1=crop_img,

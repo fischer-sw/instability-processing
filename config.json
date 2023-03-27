@@ -1,5 +1,5 @@
 {
-    "data_path" : "D:\\Data\\Daniel-Instability",
+    "data_path" : "/home/daniel/Documents/instability-processing/data",
     "results_path" : "D:\\Data\\Daniel-Instability\\results",
     "cases" : [
         "0.1mmspacer_0.015ml_2"
