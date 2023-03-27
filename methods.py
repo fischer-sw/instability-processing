@@ -40,6 +40,7 @@ def get_image_files(config, case, folder):
         logging.warning(f"No images found in folder {folder} for case {case}")
         tmp_images = []
     else:
+        images = [os.path.basename(x) for x in images]
         tmp_images = [x.split(".")[0] for x in images]
 
     logging.info('found {} images'.format(len(tmp_images)))
@@ -49,9 +50,9 @@ def get_image_files(config, case, folder):
         # if not 0 in config["images"]:
         #     config["images"].append(0)
         for img in images:
-            number = int(os.path.basename(img).split("_")[0])
+            number = int(img.split("_")[0])
             if number in config["images"]:
-                img_subset.append(os.path.basename(img))
+                img_subset.append(img)
         tmp_images = img_subset
 
     tmp_images = [x.split(".")[0] for x in tmp_images]
@@ -91,6 +92,18 @@ def calc_case_ratio():
     # create_animation(config, cas, "png_cases")
     # create_animation(config, cas, "binary_cases")
 
+def get_all_cases(config):
+    """
+    Function that puts all cases in config
+    """
+    path = os.path.join(config["data_path"], "raw_cases")
+    dirs = os.listdir(path)
+    config["all_cases"] = dirs
+    cfg_path = os.path.join(sys.path[0], "config.json")
+    with open(cfg_path, "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=4)    
+
+
 def convert2png(config, case, file) -> bool:
     """
     Function that converst .tiff images to .png images and stores them in png_cases folder for a case
@@ -101,6 +114,7 @@ def convert2png(config, case, file) -> bool:
     img_path = os.path.join(config["data_path"], "raw_cases", case, file)
     if os.path.exists(new_dir_path) is False:
         os.makedirs(new_dir_path)
+    if os.path.exists(new_img_path):
         return True
     # im = Image.open(img_path + ".tiff")
     im = cv2.imread(img_path + ".tiff", cv2.IMREAD_GRAYSCALE)
@@ -409,3 +423,4 @@ def reset_cases(config, case):
 
 if __name__ == "__main__":
     calc_case_ratio()
+    # get_all_cases(get_config())
