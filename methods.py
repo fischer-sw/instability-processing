@@ -142,10 +142,10 @@ def process_image(img_name, config, cas) -> bool:
     Function that processes an image
     """
 
-    # segment_camera(config, cas, img_name)
-    status = False
-    status = convert2png(config, cas, img_name)
-    # if status:
+    segment_camera(config, cas, img_name)
+    # status = False
+    # status = convert2png(config, cas, img_name)
+    # # if status:
     #     hist_stat = make_histo(config, cas, "png_cases", img_name)
     # else:
     #     logging.error(f"Converting image {img_name} to png failed")
@@ -237,90 +237,108 @@ def segment_camera(config, case, img_name):
         reader = sitk.ImageFileReader()
         reader.SetImageIO("PNGImageIO")
         reader.SetFileName(raw_img_path)
-        raw_img = reader.Execute()
+        raw_image = reader.Execute()
     else:
         raw_img_path = os.path.join(config["data_path"], "raw_cases", case, img_name + ".tiff")
         reader = sitk.ImageFileReader()
         reader.SetImageIO("TIFFImageIO")
         reader.SetFileName(raw_img_path)
-        raw_img = reader.Execute()
+        raw_image = reader.Execute()
 
     # crop(raw_img_path, (1000, 630, 1800, 1430), 'crop.png')
-    crop(raw_img_path, (1000, 630, 1800, 1000), 'crop.png')
+    # crop(raw_img_path, (1000, 630, 1800, 1000), 'crop.png')
 
     #factor = 10.0
     #enhance('crop.png', factor, 'enhance_{}.png'.format(factor))
     #reader.SetFileName('enhance_{}.png'.format(factor))
     # edges('crop.png', 'edges.png')
-    reader.SetFileName('crop.png')
-    crop_img = reader.Execute()
+    # reader.SetFileName('crop.png')
+    # crop_img = reader.Execute()
 
-    crop_array = sitk.GetArrayFromImage(crop_img)
-    logging.info('crop shape {}'.format(crop_array.shape))
+    # crop_array = sitk.GetArrayFromImage(crop_img)
+    # logging.info('crop shape {}'.format(crop_array.shape))
 
+    fig, axs = plt.subplots()
+    axs.set_title("Raw Image")
+    axs.imshow(sitk.GetArrayViewFromImage(raw_image))
+    plt.show()
+
+    cam_seed = [(1300,1200)]
+
+    px_val = raw_image.GetPixel(cam_seed[0])
+    logging.info(f"Cam seed value: {px_val}")
     cam_image = sitk.ConnectedThreshold(
-        image1=crop_img,
-        seedList=[(370,460)],
+        image1=raw_image,
+        seedList=cam_seed,
         lower=0,
-        upper=80,
+        upper=54,
         replaceValue=1
     )
     uni_vals = np.unique(sitk.GetArrayFromImage(cam_image))
-    logging.info(f"Unique values {uni_vals}")
+    logging.info(f"Unique values cam {uni_vals}")
 
-    cam_proc_img = sitk.LabelOverlay(crop_img, cam_image)
-    
+    cam_proc_img = sitk.LabelOverlay(raw_image, cam_image)
+    fig, axs = plt.subplots()
+    axs.set_title("Cam Image")
+    axs.imshow(sitk.GetArrayViewFromImage(cam_image))
+    plt.show()
+
     #gaussian = sitk.SmoothingRecursiveGaussianImageFilter()
     #gaussian.SetSigma(float(40.0))
-    #blur_image = gaussian.Execute(raw_img)
+    #blur_image = gaussian.Execute(raw_image)
 
     #caster = sitk.CastImageFilter()
-    #caster.SetOutputPixelType(raw_img.GetPixelID())
+    #caster.SetOutputPixelType(raw_image.GetPixelID())
     #blur_image = caster.Execute(blur_image)
 
 
-    # raw_img = raw_img - blur_image
-    # raw_img = blur_image
+    # raw_image = raw_image - blur_image
+    # raw_image = blur_image
 
-    insta_seed = [(570,460)]
-    px_val = crop_img.GetPixel(insta_seed[0])
+    insta_seed = [(1450,1200)]
+    px_val = raw_image.GetPixel(insta_seed[0])
     logging.info(f"Insta seed value: {px_val}")
 
-    # uni_vals = np.unique(sitk.GetArrayFromImage(raw_img))
+    # uni_vals = np.unique(sitk.GetArrayFromImage(raw_image))
     # logging.info(f"Unique values blured img {uni_vals}")
 
     # upper halt: [ 100, 224 ]
     # lower right quadrant: [ 100, 230 ]
     # lower left quad [ 100, 235 ]
+
+
     insta_image = sitk.ConnectedThreshold(
-        image1=crop_img,
+        image1=raw_image-cam_image,
         seedList=insta_seed,
-        lower=100,
-        upper=224,
+        lower=60,
+        upper=170,
         replaceValue=2
     )
     uni_vals = np.unique(sitk.GetArrayFromImage(insta_image))
-    logging.info(f"Unique values {uni_vals}")
+    logging.info(f"Unique values insta {uni_vals}")
 
-    insta_proc_img = sitk.LabelOverlay(crop_img, insta_image)
-
-    # sitk_show(raw_img)
+    insta_proc_img = sitk.LabelOverlay(raw_image, insta_image)
+    
+    fig, axs = plt.subplots()
+    axs.set_title("Insta Image")
+    axs.imshow(sitk.GetArrayViewFromImage(insta_image))
+    plt.show()
 
     writer = sitk.ImageFileWriter()
     writer.SetFileName("cam_segmented.png")
     writer.Execute(cam_proc_img)
 
-    #writer = sitk.ImageFileWriter()
-    #writer.SetFileName("crop.png")
-    #writer.Execute(crop_img)
+    # #writer = sitk.ImageFileWriter()
+    # #writer.SetFileName("crop.png")
+    # #writer.Execute(crop_img)
 
     writer = sitk.ImageFileWriter()
     writer.SetFileName("insta_segmented.png")
     writer.Execute(insta_proc_img)
 
-    writer = sitk.ImageFileWriter()
-    writer.SetFileName("raw.png")
-    writer.Execute(raw_img)
+    # writer = sitk.ImageFileWriter()
+    # writer.SetFileName("raw.png")
+    # writer.Execute(raw_image)
 
 def binarize_image(config, case, img_name) -> bool:
     """
