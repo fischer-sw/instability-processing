@@ -260,7 +260,8 @@ def segment_camera(config, case, img_name):
 
     fig, axs = plt.subplots()
     axs.set_title("Raw Image")
-    axs.imshow(sitk.GetArrayViewFromImage(raw_image))
+    pos = axs.imshow(sitk.GetArrayViewFromImage(raw_image), cmap="Greys")
+    fig.colorbar(pos, ax=axs)
     plt.show()
 
     cam_seed = [(1300,1200)]
@@ -271,7 +272,7 @@ def segment_camera(config, case, img_name):
         image1=raw_image,
         seedList=cam_seed,
         lower=0,
-        upper=54,
+        upper=40,
         replaceValue=1
     )
     uni_vals = np.unique(sitk.GetArrayFromImage(cam_image))
@@ -280,7 +281,7 @@ def segment_camera(config, case, img_name):
     cam_proc_img = sitk.LabelOverlay(raw_image, cam_image)
     fig, axs = plt.subplots()
     axs.set_title("Cam Image")
-    axs.imshow(sitk.GetArrayViewFromImage(cam_image))
+    axs.imshow(sitk.GetArrayViewFromImage(cam_proc_img))
     plt.show()
 
     #gaussian = sitk.SmoothingRecursiveGaussianImageFilter()
@@ -311,8 +312,8 @@ def segment_camera(config, case, img_name):
         image1=raw_image-cam_image,
         seedList=insta_seed,
         lower=60,
-        upper=170,
-        replaceValue=2
+        upper=175,
+        replaceValue=1
     )
     uni_vals = np.unique(sitk.GetArrayFromImage(insta_image))
     logging.info(f"Unique values insta {uni_vals}")
@@ -321,20 +322,48 @@ def segment_camera(config, case, img_name):
     
     fig, axs = plt.subplots()
     axs.set_title("Insta Image")
-    axs.imshow(sitk.GetArrayViewFromImage(insta_image))
+    axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
     plt.show()
 
-    writer = sitk.ImageFileWriter()
-    writer.SetFileName("cam_segmented.png")
-    writer.Execute(cam_proc_img)
+    tmp_image = insta_image
+    for i in range(10):
+        step = [3]*10
+        tmp_image = sitk.BinaryDilate(
+            image1=tmp_image,
+            backgroundValue=0.0,
+            foregroundValue=1.0,
+            kernelRadius=(step[i],1)
+        )
+
+        tmp_image = sitk.BinaryErode(
+            image1=tmp_image,
+            backgroundValue=0.0,
+            foregroundValue=1.0,
+            boundaryToForeground=True,
+            kernelRadius=(step[i],1)
+        )
+
+    fig, axs = plt.subplots()
+    axs.set_title(f"Dilate/Erode")
+    pos = axs.imshow(sitk.GetArrayViewFromImage(tmp_image), cmap="Greys")
+    fig.colorbar(pos, ax=axs)
+    plt.show()
+        
+        
+        
+        
+
+    # writer = sitk.ImageFileWriter()
+    # writer.SetFileName("cam_segmented.png")
+    # writer.Execute(cam_proc_img)
 
     # #writer = sitk.ImageFileWriter()
     # #writer.SetFileName("crop.png")
     # #writer.Execute(crop_img)
 
-    writer = sitk.ImageFileWriter()
-    writer.SetFileName("insta_segmented.png")
-    writer.Execute(insta_proc_img)
+    # writer = sitk.ImageFileWriter()
+    # writer.SetFileName("insta_segmented.png")
+    # writer.Execute(insta_proc_img)
 
     # writer = sitk.ImageFileWriter()
     # writer.SetFileName("raw.png")
