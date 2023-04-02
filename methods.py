@@ -348,11 +348,6 @@ def segment_camera(config, case, img_name):
     pos = axs.imshow(sitk.GetArrayViewFromImage(tmp_image), cmap="Greys")
     fig.colorbar(pos, ax=axs)
     plt.show()
-        
-        
-        
-        
-
     # writer = sitk.ImageFileWriter()
     # writer.SetFileName("cam_segmented.png")
     # writer.Execute(cam_proc_img)
