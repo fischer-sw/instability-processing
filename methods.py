@@ -27,7 +27,7 @@ def get_image_files(config, case, folder):
     dir_path = os.path.join(config["data_path"])
     if os.path.exists(dir_path) == False:
         logging.error(f"Data directory {dir_path} doesn't exsist. Please check config for valid path.")
-        exit()
+        # exit()
 
     dat_path = os.path.join(config["data_path"], folder, case)
     if os.path.exists(dat_path) == False:
@@ -76,7 +76,9 @@ def calc_case_ratio():
     for cas in list(config["cases"]):
         # Reseting cases for easier development
         # reset_cases(config, cas)
-        images = get_image_files(config, cas, "raw_cases")
+
+        # images = get_image_files(config, cas, "raw_cases")
+        images = get_image_files(config, cas, "png_cases")
         images.sort()
 
         parallel = True
@@ -141,15 +143,44 @@ def process_image(img_name, config, cas) -> bool:
     """
     Function that processes an image
     """
+    status = False
+    status = convert2png(config, cas, img_name)
+    if status:
+        hist_stat = make_histo(config, cas, "png_cases", img_name)
+    else:
+        logging.error(f"Converting image {img_name} to png failed")
+        return status
 
-    segment_camera(config, cas, img_name)
-    # status = False
-    # status = convert2png(config, cas, img_name)
-    # # if status:
-    #     hist_stat = make_histo(config, cas, "png_cases", img_name)
-    # else:
-    #     logging.error(f"Converting image {img_name} to png failed")
-    #     return status
+    base_img = get_base_image(config, cas, img_name)
+
+    base_array = sitk.GetArrayFromImage(base_img)
+    base_array[:,500] = [0] * base_array.shape[0]
+    base_img = sitk.GetImageFromArray(base_array)
+
+    cam_img = segment_camera(config, cas, base_img, img_name)
+
+    # get cam array
+    cam_array = sitk.GetArrayFromImage(cam_img)
+    # replace all found cam pixel with 0 in base image
+    base_array[cam_array == 1] = 0
+    base_img = sitk.GetImageFromArray(base_array)
+    insta_img, status = segment_instability(config, cas, base_img, img_name)
+    if status == False:
+        logging.error(f"No instability found in {img_name}")
+        return status
+
+
+    test = get_area(config, cas, insta_img, img_name)
+
+
+    status = False
+    status = convert2png(config, cas, img_name)
+    if status:
+        hist_stat = make_histo(config, cas, "png_cases", img_name)
+    else:
+        logging.error(f"Converting image {img_name} to png failed")
+        return status
+    
     # status = substract_background(config, cas, img_name)
     # if status:
     #     hist_stat = make_histo(config, cas, "background_removed_cases", img_name)
@@ -219,7 +250,224 @@ def enhance(file_in, factor, file_out):
     result = enhancer.enhance(factor)
     result.save(file_out)
 
-def segment_camera(config, case, img_name):
+def get_base_image(config, case, file_name):
+    """
+    Function that gets base image to process
+    """
+    raw_img_path = os.path.join(config["data_path"], "png_cases", case, file_name + ".png")
+    if os.path.exists(raw_img_path):
+        reader = sitk.ImageFileReader()
+        reader.SetImageIO("PNGImageIO")
+        reader.SetFileName(raw_img_path)
+        raw_image = reader.Execute()
+    else:
+        raw_img_path = os.path.join(config["data_path"], "raw_cases", case, file_name + ".tiff")
+        reader = sitk.ImageFileReader()
+        reader.SetImageIO("TIFFImageIO")
+        reader.SetFileName(raw_img_path)
+        raw_image = reader.Execute()
+
+    return raw_image
+
+def get_area(config, case, base_image, file_name):
+    """
+    Function that fills holes in instability segmentation
+    """
+    tmp_image = base_image
+
+    tmp_image = sitk.BinaryErode(
+        image1=tmp_image,
+        backgroundValue=0.0,
+        foregroundValue=1.0,
+        boundaryToForeground=True,
+        kernelRadius=(1,2)
+    )
+
+    tmp_image = sitk.BinaryDilate(
+        image1=tmp_image,
+        backgroundValue=0.0,
+        foregroundValue=1.0,
+        boundaryToForeground=True,
+        kernelRadius=(1,2)
+    )
+
+    # get rid of small artifacts    
+    tmp_image = sitk.BinaryErode(
+            image1=tmp_image,
+            backgroundValue=0.0,
+            foregroundValue=1.0,
+            kernelRadius=(10,10)
+         )
+    
+    tmp_image = sitk.BinaryDilate(
+            image1=tmp_image,
+            backgroundValue=0.0,
+            foregroundValue=1.0,
+            kernelRadius=(10,10)
+         )
+    
+    fig, axs = plt.subplots()
+    axs.set_title(f"Instability after Dilate/Erode")
+    pos = axs.imshow(sitk.GetArrayViewFromImage(tmp_image), cmap="Greys")
+    fig.colorbar(pos, ax=axs)
+    
+    folder = "instability"
+    dir_path = os.path.join(config["data_path"], folder, case)
+    if os.path.exists(dir_path) is False:
+        os.makedirs(dir_path)
+        logging.info(f"Creating dir {folder} for case {case}") 
+    fig.savefig(os.path.join(dir_path, file_name + ".png"))
+    plt.close(fig)
+
+    image = sitk.GetArrayFromImage(tmp_image)
+    
+    import skimage as ski
+
+    chull = ski.morphology.convex_hull_image(image)
+    fig, axs = plt.subplots()
+    axs.set_title("Convex Hull")
+    pos = axs.imshow(chull, cmap="Greys")
+    fig.colorbar(pos, ax=axs)
+
+    folder = "convex_hulls"
+    dir_path = os.path.join(config["data_path"], folder, case)
+    if os.path.exists(dir_path) is False:
+        os.makedirs(dir_path)
+        logging.info(f"Creating dir {folder} for case {case}") 
+    fig.savefig(os.path.join(dir_path, file_name + ".png"))
+    plt.close(fig)
+
+
+def segment_camera(config, case, base_image, file_name):
+    """
+    Function that segements instability from an image
+    """
+    cam_seed = [(10,10)]
+
+    px_val = base_image.GetPixel(cam_seed[0])
+    logging.info(f"Cam seed value: {px_val}")
+    cam_image = sitk.ConnectedThreshold(
+        image1=base_image,
+        seedList=cam_seed,
+        lower=0,
+        upper=55,
+        replaceValue=1
+    )
+    uni_vals = np.unique(sitk.GetArrayFromImage(cam_image))
+    logging.info(f"Unique values cam {uni_vals}")
+
+    cam_proc_img = sitk.LabelOverlay(base_image, cam_image)
+    fig, axs = plt.subplots()
+    axs.set_title(f"Cam Image {file_name.split('_')[0]}")
+    axs.imshow(sitk.GetArrayViewFromImage(cam_proc_img))
+
+    folder = "segmented_camera"
+    dir_path = os.path.join(config["data_path"], folder, case)
+    if os.path.exists(dir_path) is False:
+        os.makedirs(dir_path)
+        logging.info(f"Creating dir {folder} for case {case}") 
+    fig.savefig(os.path.join(dir_path, file_name + ".png"))
+    plt.close(fig)
+    return cam_image
+
+def segment_instability(config, case, base_image, file_name):
+    """
+    Function that segements camera from base image
+    """
+    status = True
+    insta_seed = [(1450,1200)]
+    px_val = base_image.GetPixel(insta_seed[0])
+    logging.info(f"Insta seed value: {px_val}")
+
+    # uni_vals = np.unique(sitk.GetArrayFromImage(base_image))
+    # logging.info(f"Unique values blured img {uni_vals}")
+
+    # upper halt: [ 100, 224 ]
+    # lower right quadrant: [ 100, 230 ]
+    # lower left quad [ 100, 235 ]
+
+    lower_limit = 1
+    upper_start = 100
+    
+    # initial segmentation
+    insta_image = sitk.ConnectedThreshold(
+            image1=base_image,
+            seedList=insta_seed,
+            lower=lower_limit,
+            upper=upper_start,
+            replaceValue=1
+        )
+    px_n, px_count = np.unique(sitk.GetArrayFromImage(insta_image), return_counts=True)
+
+    if len(px_n) == 1:
+        return base_image, False
+    
+    px_count_old = px_count[1]
+    delta = px_count[1] / px_count_old
+    i = 0
+    delta_data = {
+        "deltas" : [delta],
+        "limits" : [upper_start+5*i]
+    }
+    while delta < 1.2:
+        new_limit = upper_start+5*i
+        insta_image = sitk.ConnectedThreshold(
+            image1=base_image,
+            seedList=insta_seed,
+            lower=lower_limit,
+            upper=new_limit,
+            replaceValue=1
+        )
+        px_n, px_count = np.unique(sitk.GetArrayFromImage(insta_image), return_counts=True)
+        delta = px_count[1] / px_count_old
+        delta_data["limits"].append(new_limit)
+        delta_data["deltas"].append(delta)
+        px_count_old = px_count[1]
+        logging.debug(f"Limit: {new_limit} delta = {delta}")
+        i += 1
+
+    # final segmentation
+    new_limit = upper_start+5*(i-5)
+    insta_image = sitk.ConnectedThreshold(
+    image1=base_image,
+        seedList=insta_seed,
+        lower=lower_limit,
+        upper=new_limit,
+        replaceValue=1
+    )
+    uni_vals = np.unique(sitk.GetArrayFromImage(insta_image))
+    logging.info(f"Unique values insta {uni_vals}")
+
+    insta_proc_img = sitk.LabelOverlay(base_image, insta_image)
+    
+    fig, axs = plt.subplots()
+    axs.set_title(f"Insta Image {int(file_name.split('_')[0])} limit {new_limit} last_delta {delta.round(2)}")
+    axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
+    folder = "segmented_instability"
+    dir_path = os.path.join(config["data_path"], folder, case)
+    if os.path.exists(dir_path) is False:
+        os.makedirs(dir_path)
+        logging.info(f"Creating dir {folder} for case {case}") 
+    fig.savefig(os.path.join(dir_path, file_name + ".png"))
+    plt.close(fig)
+
+    # save delta data
+    fig, axs = plt.subplots()
+    axs.set_title(f"Detas {file_name.split('_')[0]}")
+    axs.plot(delta_data["limits"], delta_data["deltas"])
+    axs.set_xlabel("upper_limits")
+    axs.set_ylabel("segmented pixel growth rate")
+    folder = "delta_data"
+    dir_path = os.path.join(config["data_path"], folder, case)
+    if os.path.exists(dir_path) is False:
+        os.makedirs(dir_path)
+        logging.info(f"Creating dir {folder} for case {case}") 
+    fig.savefig(os.path.join(dir_path, file_name + ".png"))
+    plt.close(fig)
+
+    return insta_image, status
+
+def segment_camera_1(config, case, img_name):
     """
     Function that segements camera from the image and moves it to background
     """
@@ -264,7 +512,8 @@ def segment_camera(config, case, img_name):
     fig.colorbar(pos, ax=axs)
     plt.show()
 
-    cam_seed = [(1300,1200)]
+    # cam_seed = [(1300,1200)]
+    cam_seed = [(10,10)]
 
     px_val = raw_image.GetPixel(cam_seed[0])
     logging.info(f"Cam seed value: {px_val}")
@@ -272,8 +521,8 @@ def segment_camera(config, case, img_name):
         image1=raw_image,
         seedList=cam_seed,
         lower=0,
-        upper=40,
-        replaceValue=1
+        upper=55,
+        replaceValue=0
     )
     uni_vals = np.unique(sitk.GetArrayFromImage(cam_image))
     logging.info(f"Unique values cam {uni_vals}")
@@ -311,8 +560,8 @@ def segment_camera(config, case, img_name):
     insta_image = sitk.ConnectedThreshold(
         image1=raw_image-cam_image,
         seedList=insta_seed,
-        lower=60,
-        upper=175,
+        lower=55,
+        upper=170,
         replaceValue=1
     )
     uni_vals = np.unique(sitk.GetArrayFromImage(insta_image))
@@ -326,28 +575,103 @@ def segment_camera(config, case, img_name):
     plt.show()
 
     tmp_image = insta_image
-    for i in range(10):
-        step = [3]*10
+
+    tmp_image = sitk.BinaryErode(
+        image1=tmp_image,
+        backgroundValue=0.0,
+        foregroundValue=1.0,
+        boundaryToForeground=True,
+        kernelRadius=(1,2)
+    )
+
+    tmp_image = sitk.BinaryDilate(
+        image1=tmp_image,
+        backgroundValue=0.0,
+        foregroundValue=1.0,
+        boundaryToForeground=True,
+        kernelRadius=(1,2)
+    )
+
+    for i in range(5):
         tmp_image = sitk.BinaryDilate(
             image1=tmp_image,
             backgroundValue=0.0,
             foregroundValue=1.0,
-            kernelRadius=(step[i],1)
-        )
+            kernelRadius=(2,2)
+         )
 
+    for i in range(5):
         tmp_image = sitk.BinaryErode(
             image1=tmp_image,
             backgroundValue=0.0,
             foregroundValue=1.0,
-            boundaryToForeground=True,
-            kernelRadius=(step[i],1)
-        )
-
+            kernelRadius=(2,2)
+         )
+    # get rid of small artifacts    
+    tmp_image = sitk.BinaryErode(
+            image1=tmp_image,
+            backgroundValue=0.0,
+            foregroundValue=1.0,
+            kernelRadius=(10,10)
+         )
+    
+    tmp_image = sitk.BinaryDilate(
+            image1=tmp_image,
+            backgroundValue=0.0,
+            foregroundValue=1.0,
+            kernelRadius=(10,10)
+         )
+    
     fig, axs = plt.subplots()
     axs.set_title(f"Dilate/Erode")
     pos = axs.imshow(sitk.GetArrayViewFromImage(tmp_image), cmap="Greys")
     fig.colorbar(pos, ax=axs)
     plt.show()
+
+    image = sitk.GetArrayFromImage(tmp_image)
+    
+    import skimage as ski
+
+    chull = ski.morphology.convex_hull_image(image)
+    fig, axs = plt.subplots()
+    axs.set_title("Chull")
+    pos = axs.imshow(chull, cmap="Greys")
+    fig.colorbar(pos, ax=axs)
+    plt.show()
+
+    # mask = sitk.GetArrayFromImage(tmp_image)
+    # print(np.unique(mask))
+    # print(np.count_nonzero(mask), np.prod(mask.shape))
+    # print(np.nonzero(mask))
+
+    # find contour by dilation
+    # old_image = tmp_image
+    # tmp_image = sitk.BinaryDilate(
+    #         image1=tmp_image,
+    #         backgroundValue=0.0,
+    #         foregroundValue=1.0,
+    #         kernelRadius=(5,5)
+    #      )
+    # tmp_image = tmp_image - old_image
+
+    # for i in range(10):
+    #     step = [3]*10
+    #     tmp_image = sitk.BinaryDilate(
+    #         image1=tmp_image,
+    #         backgroundValue=0.0,
+    #         foregroundValue=1.0,
+    #         kernelRadius=(step[i],1)
+    #     )
+
+    #     tmp_image = sitk.BinaryErode(
+    #         image1=tmp_image,
+    #         backgroundValue=0.0,
+    #         foregroundValue=1.0,
+    #         boundaryToForeground=True,
+    #         kernelRadius=(step[i],1)
+    #     )
+
+    
     # writer = sitk.ImageFileWriter()
     # writer.SetFileName("cam_segmented.png")
     # writer.Execute(cam_proc_img)
@@ -394,7 +718,7 @@ def substract_background(config, case, img_name) -> bool:
     if os.path.exists(new_img_path):
         return True
     imgs = config["images"]
-    config["images"] = [0]
+    config["images"] = [1]
     background_img = get_image_files(config, case, "png_cases")
     config["images"] = imgs
     background = read_image(config, "png_cases", background_img[0], case)
