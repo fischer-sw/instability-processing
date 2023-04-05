@@ -7,10 +7,10 @@ import shutil
 
 from multiprocessing import Pool
 from functools import partial
+from PIL import Image
 
 import numpy as np
 import pandas as pd
-import PIL
 import matplotlib.pyplot as plt
 import matplotlib.image as mlt
 import cv2
@@ -27,7 +27,7 @@ def get_image_files(config, case, folder):
     dir_path = os.path.join(config["data_path"])
     if os.path.exists(dir_path) == False:
         logging.error(f"Data directory {dir_path} doesn't exsist. Please check config for valid path.")
-        # exit()
+        exit()
 
     dat_path = os.path.join(config["data_path"], folder, case)
     if os.path.exists(dat_path) == False:
@@ -46,9 +46,6 @@ def get_image_files(config, case, folder):
     logging.info('found {} images'.format(len(tmp_images)))
     if config["images"] != []:
         img_subset = []
-        # append first image (background)
-        # if not 0 in config["images"]:
-        #     config["images"].append(0)
         for img in images:
             number = int(img.split("_")[0])
             if number in config["images"]:
@@ -91,8 +88,8 @@ def calc_case_ratio():
             for img in images:
                 status = process_image(img, config, cas)
             
-    # create_animation(config, cas, "png_cases")
-    # create_animation(config, cas, "binary_cases")
+        create_animation(config, cas, "final_results")
+        create_animation(config, cas, "png_cases")
 
 def get_all_cases(config):
     """
@@ -143,6 +140,14 @@ def process_image(img_name, config, cas) -> bool:
     """
     Function that processes an image
     """
+    final_dir_path = os.path.join(config["results_path"], "final_results", cas)
+    if os.path.exists(final_dir_path) == False:
+        os.makedirs(final_dir_path)
+    res_csv_path = os.path.join(final_dir_path, img_name + ".csv")
+    if os.path.exists(res_csv_path):
+        logging.info(f"Already processed image {img_name} for case {cas}")
+        return True
+
     status = False
     status = convert2png(config, cas, img_name)
     if status:
@@ -169,17 +174,27 @@ def process_image(img_name, config, cas) -> bool:
         logging.error(f"No instability found in {img_name}")
         return status
 
+    # hull = convex_hull(config, cas, insta_img, img_name)
+    new_insta_img = refine_instability(config, cas, insta_img, img_name)
+    # final_insta_img = close_instability(config, cas, new_insta_img, img_name)
+    
 
-    test = get_area(config, cas, insta_img, img_name)
+    res_array = sitk.GetArrayFromImage(new_insta_img)
+    final_dir_path = os.path.join(config["data_path"], "final_results", cas)
+    if os.path.exists(final_dir_path) == False:
+        os.makedirs(final_dir_path)
+    img_path = os.path.join(final_dir_path, img_name + ".png")
+    plt.imsave(img_path, res_array, cmap="Greys", dpi=1200)
+    df = pd.DataFrame(res_array)
+    df.to_csv(res_csv_path)
 
-
-    status = False
-    status = convert2png(config, cas, img_name)
-    if status:
-        hist_stat = make_histo(config, cas, "png_cases", img_name)
-    else:
-        logging.error(f"Converting image {img_name} to png failed")
-        return status
+    # status = False
+    # status = convert2png(config, cas, img_name)
+    # if status:
+    #     hist_stat = make_histo(config, cas, "png_cases", img_name)
+    # else:
+    #     logging.error(f"Converting image {img_name} to png failed")
+    #     return status
     
     # status = substract_background(config, cas, img_name)
     # if status:
@@ -269,7 +284,43 @@ def get_base_image(config, case, file_name):
 
     return raw_image
 
-def get_area(config, case, base_image, file_name):
+def close_instability(config, case, base_image, file_name):
+    """
+    Function that trys to close camera hole. WORK IN PROGRESS!
+    """
+    image_array = sitk.GetArrayFromImage(base_image)
+    
+    for i in range(image_array.shape[1]):
+
+        line_vals = image_array[:,i]
+        if len(np.unique(line_vals)) < 2:
+            continue
+        # logging.info(line_vals)
+        # line_thickness = 8
+        # start = round(i - line_thickness/2)
+        # markers = [start+ n*1 for n in range(line_thickness)]
+        # image_array[:,markers] = 1.0
+        # horiz = 1200
+        # start = round(horiz - line_thickness/2)
+        # markers = [start+ n*1 for n in range(line_thickness)]
+        # image_array[markers,:] = 1.0
+        # fig, axs = plt.subplots()
+        # axs.set_title(f"Test Image {i}")
+        # pos = axs.imshow(image_array, cmap="Greys")
+        # fig.colorbar(pos, ax=axs)
+        # plt.show()
+        # plt.close(fig)
+    
+    # folder = "instability"
+    # dir_path = os.path.join(config["data_path"], folder, case)
+    # if os.path.exists(dir_path) is False:
+    #     os.makedirs(dir_path)
+    #     logging.info(f"Creating dir {folder} for case {case}")
+    # if config["save_intermediate"]:
+        # fig.savefig(os.path.join(dir_path, file_name + ".png"))
+    # plt.close(fig)
+
+def refine_instability(config, case, base_image, file_name):
     """
     Function that fills holes in instability segmentation
     """
@@ -296,14 +347,14 @@ def get_area(config, case, base_image, file_name):
             image1=tmp_image,
             backgroundValue=0.0,
             foregroundValue=1.0,
-            kernelRadius=(10,10)
+            kernelRadius=(7,7)
          )
     
     tmp_image = sitk.BinaryDilate(
             image1=tmp_image,
             backgroundValue=0.0,
             foregroundValue=1.0,
-            kernelRadius=(10,10)
+            kernelRadius=(7,7)
          )
     
     fig, axs = plt.subplots()
@@ -315,9 +366,15 @@ def get_area(config, case, base_image, file_name):
     dir_path = os.path.join(config["data_path"], folder, case)
     if os.path.exists(dir_path) is False:
         os.makedirs(dir_path)
-        logging.info(f"Creating dir {folder} for case {case}") 
-    fig.savefig(os.path.join(dir_path, file_name + ".png"))
+        logging.info(f"Creating dir {folder} for case {case}")
+    if config["save_intermediate"]:
+        fig.savefig(os.path.join(dir_path, file_name + ".png"))
     plt.close(fig)
+    return tmp_image
+
+def convex_hull(config, case, base_image, file_name):
+
+    tmp_image = base_image
 
     image = sitk.GetArrayFromImage(tmp_image)
     
@@ -333,9 +390,12 @@ def get_area(config, case, base_image, file_name):
     dir_path = os.path.join(config["data_path"], folder, case)
     if os.path.exists(dir_path) is False:
         os.makedirs(dir_path)
-        logging.info(f"Creating dir {folder} for case {case}") 
-    fig.savefig(os.path.join(dir_path, file_name + ".png"))
+        logging.info(f"Creating dir {folder} for case {case}")
+    if config["save_intermediate"]:
+        fig.savefig(os.path.join(dir_path, file_name + ".png"))
     plt.close(fig)
+
+    return chull
 
 
 def segment_camera(config, case, base_image, file_name):
@@ -365,8 +425,9 @@ def segment_camera(config, case, base_image, file_name):
     dir_path = os.path.join(config["data_path"], folder, case)
     if os.path.exists(dir_path) is False:
         os.makedirs(dir_path)
-        logging.info(f"Creating dir {folder} for case {case}") 
-    fig.savefig(os.path.join(dir_path, file_name + ".png"))
+        logging.info(f"Creating dir {folder} for case {case}")
+    if config["save_intermediate"]:
+        fig.savefig(os.path.join(dir_path, file_name + ".png"))
     plt.close(fig)
     return cam_image
 
@@ -409,7 +470,7 @@ def segment_instability(config, case, base_image, file_name):
         "deltas" : [delta],
         "limits" : [upper_start+5*i]
     }
-    while delta < 1.2:
+    while delta < 2.0:
         new_limit = upper_start+5*i
         insta_image = sitk.ConnectedThreshold(
             image1=base_image,
@@ -427,7 +488,7 @@ def segment_instability(config, case, base_image, file_name):
         i += 1
 
     # final segmentation
-    new_limit = upper_start+5*(i-5)
+    new_limit = upper_start+5*(i-4)
     insta_image = sitk.ConnectedThreshold(
     image1=base_image,
         seedList=insta_seed,
@@ -448,7 +509,8 @@ def segment_instability(config, case, base_image, file_name):
     if os.path.exists(dir_path) is False:
         os.makedirs(dir_path)
         logging.info(f"Creating dir {folder} for case {case}") 
-    fig.savefig(os.path.join(dir_path, file_name + ".png"))
+    if config["save_intermediate"]:
+        fig.savefig(os.path.join(dir_path, file_name + ".png"))
     plt.close(fig)
 
     # save delta data
@@ -461,232 +523,12 @@ def segment_instability(config, case, base_image, file_name):
     dir_path = os.path.join(config["data_path"], folder, case)
     if os.path.exists(dir_path) is False:
         os.makedirs(dir_path)
-        logging.info(f"Creating dir {folder} for case {case}") 
-    fig.savefig(os.path.join(dir_path, file_name + ".png"))
+        logging.info(f"Creating dir {folder} for case {case}")
+    if config["save_intermediate"]:
+        fig.savefig(os.path.join(dir_path, file_name + ".png"))
     plt.close(fig)
 
     return insta_image, status
-
-def segment_camera_1(config, case, img_name):
-    """
-    Function that segements camera from the image and moves it to background
-    """
-
-    folder = "segmented_camera"
-    base_path=os.path.join(config["data_path"], folder, case)
-    if os.path.exists(base_path) == False:
-        os.makedirs(base_path)
-    new_img_path = os.path.join(config["data_path"], folder, case, img_name + ".png")
-    if os.path.exists(new_img_path):
-        return True
-
-    raw_img_path = os.path.join(config["data_path"], "png_cases", case, img_name + ".png")
-    if os.path.exists(raw_img_path):
-        reader = sitk.ImageFileReader()
-        reader.SetImageIO("PNGImageIO")
-        reader.SetFileName(raw_img_path)
-        raw_image = reader.Execute()
-    else:
-        raw_img_path = os.path.join(config["data_path"], "raw_cases", case, img_name + ".tiff")
-        reader = sitk.ImageFileReader()
-        reader.SetImageIO("TIFFImageIO")
-        reader.SetFileName(raw_img_path)
-        raw_image = reader.Execute()
-
-    # crop(raw_img_path, (1000, 630, 1800, 1430), 'crop.png')
-    # crop(raw_img_path, (1000, 630, 1800, 1000), 'crop.png')
-
-    #factor = 10.0
-    #enhance('crop.png', factor, 'enhance_{}.png'.format(factor))
-    #reader.SetFileName('enhance_{}.png'.format(factor))
-    # edges('crop.png', 'edges.png')
-    # reader.SetFileName('crop.png')
-    # crop_img = reader.Execute()
-
-    # crop_array = sitk.GetArrayFromImage(crop_img)
-    # logging.info('crop shape {}'.format(crop_array.shape))
-
-    fig, axs = plt.subplots()
-    axs.set_title("Raw Image")
-    pos = axs.imshow(sitk.GetArrayViewFromImage(raw_image), cmap="Greys")
-    fig.colorbar(pos, ax=axs)
-    plt.show()
-
-    # cam_seed = [(1300,1200)]
-    cam_seed = [(10,10)]
-
-    px_val = raw_image.GetPixel(cam_seed[0])
-    logging.info(f"Cam seed value: {px_val}")
-    cam_image = sitk.ConnectedThreshold(
-        image1=raw_image,
-        seedList=cam_seed,
-        lower=0,
-        upper=55,
-        replaceValue=0
-    )
-    uni_vals = np.unique(sitk.GetArrayFromImage(cam_image))
-    logging.info(f"Unique values cam {uni_vals}")
-
-    cam_proc_img = sitk.LabelOverlay(raw_image, cam_image)
-    fig, axs = plt.subplots()
-    axs.set_title("Cam Image")
-    axs.imshow(sitk.GetArrayViewFromImage(cam_proc_img))
-    plt.show()
-
-    #gaussian = sitk.SmoothingRecursiveGaussianImageFilter()
-    #gaussian.SetSigma(float(40.0))
-    #blur_image = gaussian.Execute(raw_image)
-
-    #caster = sitk.CastImageFilter()
-    #caster.SetOutputPixelType(raw_image.GetPixelID())
-    #blur_image = caster.Execute(blur_image)
-
-
-    # raw_image = raw_image - blur_image
-    # raw_image = blur_image
-
-    insta_seed = [(1450,1200)]
-    px_val = raw_image.GetPixel(insta_seed[0])
-    logging.info(f"Insta seed value: {px_val}")
-
-    # uni_vals = np.unique(sitk.GetArrayFromImage(raw_image))
-    # logging.info(f"Unique values blured img {uni_vals}")
-
-    # upper halt: [ 100, 224 ]
-    # lower right quadrant: [ 100, 230 ]
-    # lower left quad [ 100, 235 ]
-
-
-    insta_image = sitk.ConnectedThreshold(
-        image1=raw_image-cam_image,
-        seedList=insta_seed,
-        lower=55,
-        upper=170,
-        replaceValue=1
-    )
-    uni_vals = np.unique(sitk.GetArrayFromImage(insta_image))
-    logging.info(f"Unique values insta {uni_vals}")
-
-    insta_proc_img = sitk.LabelOverlay(raw_image, insta_image)
-    
-    fig, axs = plt.subplots()
-    axs.set_title("Insta Image")
-    axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
-    plt.show()
-
-    tmp_image = insta_image
-
-    tmp_image = sitk.BinaryErode(
-        image1=tmp_image,
-        backgroundValue=0.0,
-        foregroundValue=1.0,
-        boundaryToForeground=True,
-        kernelRadius=(1,2)
-    )
-
-    tmp_image = sitk.BinaryDilate(
-        image1=tmp_image,
-        backgroundValue=0.0,
-        foregroundValue=1.0,
-        boundaryToForeground=True,
-        kernelRadius=(1,2)
-    )
-
-    for i in range(5):
-        tmp_image = sitk.BinaryDilate(
-            image1=tmp_image,
-            backgroundValue=0.0,
-            foregroundValue=1.0,
-            kernelRadius=(2,2)
-         )
-
-    for i in range(5):
-        tmp_image = sitk.BinaryErode(
-            image1=tmp_image,
-            backgroundValue=0.0,
-            foregroundValue=1.0,
-            kernelRadius=(2,2)
-         )
-    # get rid of small artifacts    
-    tmp_image = sitk.BinaryErode(
-            image1=tmp_image,
-            backgroundValue=0.0,
-            foregroundValue=1.0,
-            kernelRadius=(10,10)
-         )
-    
-    tmp_image = sitk.BinaryDilate(
-            image1=tmp_image,
-            backgroundValue=0.0,
-            foregroundValue=1.0,
-            kernelRadius=(10,10)
-         )
-    
-    fig, axs = plt.subplots()
-    axs.set_title(f"Dilate/Erode")
-    pos = axs.imshow(sitk.GetArrayViewFromImage(tmp_image), cmap="Greys")
-    fig.colorbar(pos, ax=axs)
-    plt.show()
-
-    image = sitk.GetArrayFromImage(tmp_image)
-    
-    import skimage as ski
-
-    chull = ski.morphology.convex_hull_image(image)
-    fig, axs = plt.subplots()
-    axs.set_title("Chull")
-    pos = axs.imshow(chull, cmap="Greys")
-    fig.colorbar(pos, ax=axs)
-    plt.show()
-
-    # mask = sitk.GetArrayFromImage(tmp_image)
-    # print(np.unique(mask))
-    # print(np.count_nonzero(mask), np.prod(mask.shape))
-    # print(np.nonzero(mask))
-
-    # find contour by dilation
-    # old_image = tmp_image
-    # tmp_image = sitk.BinaryDilate(
-    #         image1=tmp_image,
-    #         backgroundValue=0.0,
-    #         foregroundValue=1.0,
-    #         kernelRadius=(5,5)
-    #      )
-    # tmp_image = tmp_image - old_image
-
-    # for i in range(10):
-    #     step = [3]*10
-    #     tmp_image = sitk.BinaryDilate(
-    #         image1=tmp_image,
-    #         backgroundValue=0.0,
-    #         foregroundValue=1.0,
-    #         kernelRadius=(step[i],1)
-    #     )
-
-    #     tmp_image = sitk.BinaryErode(
-    #         image1=tmp_image,
-    #         backgroundValue=0.0,
-    #         foregroundValue=1.0,
-    #         boundaryToForeground=True,
-    #         kernelRadius=(step[i],1)
-    #     )
-
-    
-    # writer = sitk.ImageFileWriter()
-    # writer.SetFileName("cam_segmented.png")
-    # writer.Execute(cam_proc_img)
-
-    # #writer = sitk.ImageFileWriter()
-    # #writer.SetFileName("crop.png")
-    # #writer.Execute(crop_img)
-
-    # writer = sitk.ImageFileWriter()
-    # writer.SetFileName("insta_segmented.png")
-    # writer.Execute(insta_proc_img)
-
-    # writer = sitk.ImageFileWriter()
-    # writer.SetFileName("raw.png")
-    # writer.Execute(raw_image)
 
 def binarize_image(config, case, img_name) -> bool:
     """
@@ -748,30 +590,30 @@ def make_histo(config, case, folder, name) -> bool:
     plt.close()
     return True
 
-def create_animation(config, case, folder):
+def create_animation(config, case, data_folder):
     """
     Function that creates animation video for images
     """
 
-    images = get_image_files(config, case, "png_cases")
+    images = get_image_files(config, case, data_folder)
     if images == []:
         logging.warning(f"No images found to create animation for case {case}.")
         return
-    animation_folder_path = os.path.join(config["data_path"], "animations", case)
-    dat_path = os.path.join(config["data_path"], folder, case)
+    animation_folder_path = os.path.join(config["results_path"], "animations", case)
+    if os.path.exists(animation_folder_path) == False:
+        os.makedirs(animation_folder_path)
+    dat_path = os.path.join(config["data_path"], data_folder, case)
     frame = cv2.imread(os.path.join(dat_path, images[0]+ ".png"))
-
     height, width, layers = frame.shape
-    fps = 1000/500
-    video_path = os.path.join(animation_folder_path, folder + ".avi")
+    fps = 5
+    video_path = os.path.join(animation_folder_path, data_folder + ".avi")
     out = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*'DIVX'), fps, (width, height))
     for image in images:
         img = cv2.imread(os.path.join(dat_path, image + ".png"))
         out.write(img)
-
     cv2.destroyAllWindows()
     out.release()
-    logging.info(f"Created {folder} video for case {case}")
+    logging.info(f"Created {data_folder} video for case {case}")
 
 def reset_cases(config, case):
     """

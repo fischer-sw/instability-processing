@@ -1,9 +1,15 @@
 {
     "gss_data_path": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\Image_Processing_for_Xanthan_Gum_Displacement",
     "data_path" : "D:\\Documents\\instability-processing\\data",
-    "results_path": "D:\\Data\\Daniel-Instability\\results",
+    "results_path": "D:\\Documents\\instability-processing\\results",
+    "save_intermediate" : false,
     "cases": [
-        "0,5mmspacer0.1ml2"
+        "0,5mmspacer0.1ml",
+        "0,5mmspacer0.1ml2",
+        "0,5mmspacer0.1ml3",
+        "0.5mmspacer1ml2",
+        "0.5mmspacer0.5ml",
+        "0.5mmspacer1ml3"
     ],
     "images": [
     ],
