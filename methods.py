@@ -3,6 +3,7 @@ import sys
 import json
 import glob
 import logging
+import math
 import shutil
 
 from multiprocessing import Pool
@@ -78,6 +79,9 @@ def calc_case_ratio():
         images = get_image_files(config, cas, "png_cases")
         images.sort()
 
+        if config["images"] == []:
+            config["debug"] = False
+
         if config["debug"]:
             parallel = False
         else:    
@@ -91,7 +95,7 @@ def calc_case_ratio():
             for img in images:
                 status = process_image(img, config, cas)
             
-        create_animation(config, cas, "final_results")
+        create_animation(config, cas, "final_images")
         create_animation(config, cas, "png_cases")
 
 def get_all_cases(config):
@@ -181,8 +185,12 @@ def process_image(img_name, config, cas) -> bool:
         return status
 
     # hull = convex_hull(config, cas, insta_img, img_name)
-    new_insta_img = refine_instability(config, cas, insta_img, img_name)
-    final_insta_img = close_instability(config, cas, new_insta_img, img_name)
+    new_insta_img, status = refine_instability(config, cas, insta_img, img_name)
+    if status == False:
+        logging.error(f"Instability found in {img_name} is more than one blob")
+        return status
+    
+    final_insta_img = close_instability(config, cas, new_insta_img, img_name, cam_img)
     
     contours = get_contour(config, cas, final_insta_img, img_name)
     df = pd.DataFrame(contours)  
@@ -200,26 +208,6 @@ def process_image(img_name, config, cas) -> bool:
     plt.imsave(img_path, res_array, cmap="Greys", dpi=1200)
     df = pd.DataFrame(res_array)
     df.to_csv(res_csv_path)
-
-def detect_circles(config, case, folder, image_name):
-    """
-    Function to detect circle within a binary image
-    """
-    img = read_image(config, folder, image_name, case)
-
-    h, w = img.shape[:2]
-    # Detect circles in the image
-    circles = cv2.HoughCircles(img,
-        cv2.HOUGH_GRADIENT,
-        1.2,
-        20,
-        param1=50,
-        param2=30,
-        minRadius=100,
-        maxRadius=w
-    )
-    if circles != None:
-        logging.info(f"Circles = {circles}")
 
 def save_image(config, folder, filename, img, case):
     """
@@ -299,7 +287,7 @@ def get_contour(config, case, base_image, file_name):
         plt.close(fig)
     return contour_image
 
-def close_instability(config, case, base_image, file_name):
+def close_instability(config, case, base_image, file_name, cam_image):
     """
     Function that trys to close camera hole. WORK IN PROGRESS!
     """
@@ -311,91 +299,123 @@ def close_instability(config, case, base_image, file_name):
         "values" : []
     }
     contours, hierarchy = cv2.findContours(image=image_array, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_SIMPLE)
-    cont = contours[-1]
+    cont = contours[0]
 
     M = cv2.moments(cont)
     cX = int(M["m10"] / M["m00"])
     cY = int(M["m01"] / M["m00"])
-    logging.info(f"cX: {cX}, cY: {cY}")
-
-    # upper half
-    upper_x = image_array.shape[1]
-    lower_x = upper_x
-    upper_lines = list(range(0,cY))
-    upper_lines.reverse()
-    lower_lines = list(range(cY, image_array.shape[0]))
-
-    for i in upper_lines:
-
-        horiz_line_vals = image_array[i,:]
-        px_vals, px_count = np.unique(horiz_line_vals, return_counts=True)
-        if len(px_vals) < 2:
-            break
-        # logging.info(line_vals)
-        black_pxs = px_count[1]
-        rates["line"].append(i)
-        rates["values"].append(px_count[1])
-        tmp_x = np.where(horiz_line_vals == 1)[0].min()
-        if tmp_x < upper_x:
-            upper_y = i
-            upper_x = tmp_x
-            # logging.info(f"New Point ({upper_x}, {upper_y})")
-
-    lines = False
-    if lines:
-        # vertical line
-        line_thickness = 8
-        verti = cY
-        start = round(verti - line_thickness/2)
-        markers = [start+ n*1 for n in range(line_thickness)]
-        image_array[:,markers] = 1.0
-
-        # horizontal line
-        horiz = cX
-        start = round(horiz - line_thickness/2)
-        markers = [start+ n*1 for n in range(line_thickness)]
-        image_array[markers,:] = 1.0
-
-    upper = (int(upper_x), int(upper_y))
+    cX -= 10
+    logging.info(f"cX: {cY}, cY: {cX}")
 
 
-    for i in lower_lines:
-        horiz_line_vals = image_array[i,:]
-        px_vals, px_count = np.unique(horiz_line_vals, return_counts=True)
-        if len(px_vals) < 2:
-            break
-        # logging.info(line_vals)
-        black_pxs = px_count[1]
-        rates["line"].append(i)
-        rates["values"].append(px_count[1])
-        tmp_x = int(np.where(horiz_line_vals == 1)[0].min())
-        if tmp_x < lower_x:
-            lower_y = i
-            lower_x = tmp_x
-            # logging.info(f"New Point ({lower_x}, {lower_y})")
-    lower = (lower_x, lower_y)
-        
-    lines = False
-    if lines:
-        # vertical line
-        line_thickness = 8
-        verti = lower_x
-        start = round(verti - line_thickness/2)
-        markers = [start+ n*1 for n in range(line_thickness)]
-        image_array[:,markers] = 1.0
 
-        # horizontal line
-        horiz = lower_lines[0]
-        start = round(horiz - line_thickness/2)
-        markers = [start+ n*1 for n in range(line_thickness)]
-        image_array[markers,:] = 1.0  
+
+
     
+
+
+
+
+    contour_image = cv2.drawContours(image=np.zeros(image_array.shape), contours=contours, contourIdx=0, color=(1, 0, 0), thickness=7, lineType=cv2.LINE_AA)
+
+    bound_rect = cv2.boundingRect(cont)
+    logging.info(bound_rect)
+
+    tl_x = bound_rect[0]
+    tl_y = bound_rect[1]
+    width = bound_rect[2]
+    height = bound_rect[3]
+
+
+
+    #get array from camera image
+    cam_array = sitk.GetArrayFromImage(cam_image)
+    cam_array[:,:tl_y-100] = 0 
+    cam_array[:,tl_y+100:] = 0
+
+    # find contour
+    contours, hierarchy = cv2.findContours(image=cam_array, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_SIMPLE)
+    tmp_cont = contours[0]
+    tmp_contour_image = cv2.drawContours(image=np.zeros(cam_array.shape), contours=contours, contourIdx=-1, color=(1, 0, 0), thickness=7, lineType=cv2.LINE_AA)
+
+    # fit ellipse
+    (xc,yc),(d1,d2),angle = cv2.fitEllipse(tmp_cont)
+    rmajor = max(d1,d2)/2
+    if angle > 90:
+        angle = angle - 90
+    else:
+        angle = angle + 90
+
+    x1 = xc + math.cos(math.radians(angle))*rmajor
+    y1 = yc + math.sin(math.radians(angle))*rmajor
+    x2 = xc + math.cos(math.radians(angle+180))*rmajor
+    y2 = yc + math.sin(math.radians(angle+180))*rmajor
+
+    m = (y2-y1)/(x2-x1)
+    b = y1-x1*m
+    logging.info(f"Slope: {m}")
+    
+    fig, axs = plt.subplots()
+    axs.set_title(f"Cabel axes {file_name.split('_')[0]}")
+    axs.imshow(tmp_contour_image, cmap="Greys")
+    axs.plot([xc], [yc], marker="*", markersize=10, color="red")
+    # axs.plot([x1, x2], [y1, y2], 'r-')
+    axs.axline((x1, y1), slope=m)
+    if config["debug"] == False:
+        plt.close(fig)
+
+    cabel = {
+        "x" : x1,
+        "y" : y1,
+        "m" : m,
+        "b" : b
+    }
+
+    bb_div_y = cabel["m"] * tl_x + cabel["b"]
+    upper_x = tl_x + width
+    upper_y = tl_y
+    for i in range(int(tl_y), int(bb_div_y)):
+        tmp_line = image_array[i,:]
+        test = np.where(tmp_line == 1)[0][0]
+        if test < upper_x:
+            upper_x = test
+            upper_y = i
+
+    upper = (upper_x, upper_y)
+
+    lower_x = tl_x + width
+    lower_y = tl_y + height
+
+    for i in range(int(bb_div_y), int(tl_y + height)):
+        tmp_line = image_array[i,:]
+        test = np.where(tmp_line == 1)[0][0]
+        if test < lower_x:
+            lower_x = test
+            lower_y = i
+
+    lower = (lower_x, lower_y)
+
+    fig, axs = plt.subplots()
+    axs.set_title(f"Contours + Center")
+    axs.plot([cX],[cY],markersize=10, marker='*', color="red"),
+    axs.plot([upper_x, lower_x],[upper_y, lower_y],markersize=5, marker='*', color="green"),
+    axs.axline((cabel["x"], cabel["y"]), slope=cabel["m"])
+    axs.plot([tl_x, tl_x+ width, tl_x+ width, tl_x, tl_x], [tl_y, tl_y, tl_y +height, tl_y + height, tl_y])
+    axs.plot([tl_x], [bb_div_y], marker="*", color="green", markersize=10)
+    # axs.legend() 
+    pos = axs.imshow(contour_image, cmap="Greys")
+    fig.colorbar(pos, ax=axs)
+    if config["debug"] == False:
+        plt.close(fig)
+
     if upper != (0,0) and lower != (0,0):
         image_array = cv2.line(image_array, lower, upper, color=(1,0,0), thickness=5)
     
 
     fig, axs = plt.subplots()
     axs.set_title(f"Closed instability")
+    axs.plot([cX],[cY],markersize=10, marker='*', color="red"),
+    # axs.plot([upper_x, lower_x],[upper_y, lower_y],markersize=10, marker='.', color="green")
     pos = axs.imshow(image_array, cmap="Greys")
     fig.colorbar(pos, ax=axs)
     if config["debug"] == False:
@@ -403,9 +423,7 @@ def close_instability(config, case, base_image, file_name):
 
     tmp_image = sitk.GetImageFromArray(image_array)
 
-    # cam_seed = [(cX,cY)]
-    cam_seed = [(1300,1300)]
-
+    cam_seed = [(cX,cY)]
 
     px_val = tmp_image.GetPixel(cam_seed[0])
     logging.info(f"Seed value: {px_val}")
@@ -444,6 +462,7 @@ def refine_instability(config, case, base_image, file_name):
     Function that fills holes in instability segmentation
     """
     tmp_image = base_image
+    status = True
 
     tmp_image = sitk.BinaryErode(
         image1=tmp_image,
@@ -476,6 +495,13 @@ def refine_instability(config, case, base_image, file_name):
             kernelRadius=(7,7)
          )
     
+    final_array = sitk.GetArrayViewFromImage(tmp_image)
+    contours, hierarchy = cv2.findContours(image=final_array, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_NONE)
+    logging.info(f"Contours_n: {len(contours)}")
+    if len(contours) != 1:
+        status = False
+        return base_image, status
+
     fig, axs = plt.subplots()
     axs.set_title(f"Instability after Dilate/Erode")
     pos = axs.imshow(sitk.GetArrayViewFromImage(tmp_image), cmap="Greys")
@@ -490,7 +516,7 @@ def refine_instability(config, case, base_image, file_name):
         fig.savefig(os.path.join(dir_path, file_name + ".png"))
     if config["debug"] == False:
         plt.close(fig)
-    return tmp_image
+    return tmp_image, status
 
 def convex_hull(config, case, base_image, file_name):
 
