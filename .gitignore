@@ -132,3 +132,4 @@ dmypy.json
 # Igonre local data
 data/*
 results/*
+raw_data/*
