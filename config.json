@@ -4,15 +4,15 @@
     "raw_data_path" : "D:\\Documents\\instability-processing\\raw_data",
     "results_path": "D:\\Documents\\instability-processing\\results",
     "save_intermediate" : true,
-    "new_files" : false,
-    "debug" : false,
+    "new_files" : true,
+    "debug" : true,
     "images": [
-
-    ],
-    "tmp_cases": [
-        "0,5mmspacer0.5ml2"
+        19
     ],
     "cases": [
+        "0,5mmspacer0.1ml2"
+    ],
+    "tmp_cases": [
         "0.1mmspacer 0.015ml 3",
         "c14tab 1ml 0,6mm spacer",
         "c14tab 1,5ml 0,6mm spacer 2",

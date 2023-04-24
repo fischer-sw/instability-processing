@@ -736,14 +736,20 @@ def segment_instability(config, case, base_image, file_name):
     Function that segements camera from base image
     """
     status = True
-    insta_seed = [(1450,1100), (1200,975), (1200,1175), (1350,975), (1350,1175)]
-    px_val = base_image.GetPixel(insta_seed[0])
+    # insta_seed = [(1450,1100), (1200,975), (1200,1175), (1350,975), (1350,1175)]
+    insta_seed = [(1450,1100)]
+    px_vals = np.array([base_image.GetPixel(ele) for ele in insta_seed])
+    px_val = px_vals[(px_vals > 0) & (px_vals < 230)]
+    if px_val.size == 0:
+        return base_image, False
+    else:
+        px_val = int(px_val.mean())
     logging.info(f"Insta seed value: {px_val}")
     lower_limit = 1
     if px_val > 230:
         return base_image, False
     else:
-        upper_start = px_val + 10
+        upper_start = px_val + 5
     # initial segmentation
     insta_image = sitk.ConnectedThreshold(
             image1=base_image,
@@ -807,14 +813,13 @@ def segment_instability(config, case, base_image, file_name):
         i += 1
         
         
-        # plot steps for debuging
-        
-        # insta_proc_img = sitk.LabelOverlay(base_image, insta_image)
-        # fig, axs = plt.subplots()
-        # axs.set_title(f"Insta Image {int(file_name.split('_')[0])} limit {new_limit} last_delta {delta.round(2)}")
-        # axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
-        # if config["debug"] == False:
-        #     plt.close(fig)
+         
+        insta_proc_img = sitk.LabelOverlay(base_image, insta_image)
+        fig, axs = plt.subplots()
+        axs.set_title(f"Insta Image {int(file_name.split('_')[0])} limit {new_limit} last_delta {delta.round(2)}")
+        axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
+        if config["debug"] == False:
+            plt.close(fig)
         
 
     # final segmentation
