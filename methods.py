@@ -27,7 +27,7 @@ def get_image_files(config, case, folder):
         dir_path = os.path.join(config["data_path"])
     if os.path.exists(dir_path) == False:
         logging.error(f"Data directory {dir_path} doesn't exsist. Please check config for valid path.")
-        exit()
+        return []
 
     dat_path = os.path.join(dir_path, folder, case)
     if os.path.exists(dat_path) == False:
@@ -43,7 +43,7 @@ def get_image_files(config, case, folder):
         images = [os.path.basename(x) for x in images]
         tmp_images = [x.split(".")[0] for x in images]
 
-    logging.info('found {} images'.format(len(tmp_images)))
+    logging.info(f'Found {len(tmp_images)} images for case {case}')
     if config["images"] != []:
         img_subset = []
         for img in images:
@@ -74,8 +74,12 @@ def calc_case_ratio():
         #create all intermediate folders
         create_intermediate_folders(config, cas)
 
-        # images = get_image_files(config, cas, "raw_cases")
-        images = get_image_files(config, cas, "png_cases")
+        images = get_image_files(config, cas, "raw_cases")
+        if images == []:
+            images = get_image_files(config, cas, "png_cases")
+        if images == []:
+            logging.warning(f"No images found for case {cas}")
+            continue
         images.sort()
 
         if config["images"] == []:
@@ -96,6 +100,9 @@ def calc_case_ratio():
             
         create_animation(config, cas, "final_images")
         create_animation(config, cas, "png_cases")
+
+    
+
 
 def create_intermediate_folders(config, cas):
     """
@@ -164,7 +171,7 @@ def process_image(img_name, config, cas) -> bool:
     res_csv_folder = os.path.join(final_dir_path, "instabilities")
     if os.path.exists(res_csv_folder) == False:
         os.makedirs(res_csv_folder)
-    res_csv_path = os.path.join(res_csv_folder ,img_name + ".csv")
+    res_csv_path = os.path.join(res_csv_folder ,img_name + ".png")
     if os.path.exists(res_csv_path) and config["new_files"] == False:
         logging.info(f"Already processed image {img_name} for case {cas}")
         return True
@@ -180,7 +187,7 @@ def process_image(img_name, config, cas) -> bool:
     base_img = get_base_image(config, cas, img_name)
 
     base_array = sitk.GetArrayFromImage(base_img)
-    base_array[:,300] = [0] * base_array.shape[0]
+    base_array[:,300:304] = 0
     base_img = sitk.GetImageFromArray(base_array)
 
     cam_img = segment_camera(config, cas, base_img, img_name)
@@ -207,21 +214,19 @@ def process_image(img_name, config, cas) -> bool:
         return status
     
     contours = get_contour(config, cas, final_insta_img, img_name)
-    df = pd.DataFrame(contours)  
+    df = pd.DataFrame(contours)
     con_csv_folder = os.path.join(final_dir_path, "contours")
     if os.path.exists(con_csv_folder) == False:
         os.makedirs(con_csv_folder)
-    con_csv_path = os.path.join(con_csv_folder, img_name + ".csv")
-    df.to_csv(con_csv_path)
+    con_path = os.path.join(con_csv_folder, img_name + ".png")
+    plt.imsave(con_path, contours, cmap="Greys", dpi=1200)
 
     res_array = sitk.GetArrayFromImage(final_insta_img)
     final_img_path = os.path.join(config["data_path"], "final_images", cas)
     if os.path.exists(final_img_path) == False:
         os.makedirs(final_img_path)
-    img_path = os.path.join(final_img_path, img_name + ".png")
-    plt.imsave(img_path, res_array, cmap="Greys", dpi=1200)
-    df = pd.DataFrame(res_array)
-    df.to_csv(res_csv_path)
+    
+    plt.imsave(res_csv_path, res_array, cmap="Greys", dpi=1200)
 
 def save_image(config, folder, filename, img, case):
     """
@@ -334,8 +339,6 @@ def close_instability(config, case, base_image, file_name, cam_image):
     width = bound_rect[2]
     height = bound_rect[3]
 
-
-
     #get array from camera image
     cam_array = sitk.GetArrayFromImage(cam_image)
 
@@ -364,22 +367,12 @@ def close_instability(config, case, base_image, file_name, cam_image):
             plt.close(fig)
 
         counter += 1        
-
-
     logging.info(f"Slope: {m}")
 
     if abs(m) > 5:
         logging.error(f"Camera segmentation near instability bounding box failed. Skiping {file_name}")
         status = False
         return status, base_image
-    
-    # fig, axs = plt.subplots()
-    # axs.set_title(f"Cabel axes {file_name.split('_')[0]}")
-    # axs.imshow(tmp_contour_image, cmap="Greys")
-    # axs.plot([xc], [yc], marker="*", markersize=10, color="red")
-    # axs.axline((x1, y1), slope=m)
-    # if config["debug"] == False:
-    #     plt.close(fig)
 
     bb_div_y = poly1d_fn(tl_x)
     upper_x = tl_x + width
@@ -408,36 +401,47 @@ def close_instability(config, case, base_image, file_name, cam_image):
     fig, axs = plt.subplots()
     axs.set_title(f"Contours + Center")
     axs.plot([cX],[cY],markersize=10, marker='*', color="red"),
-    axs.plot([upper_x, lower_x],[upper_y, lower_y],markersize=5, marker='*', color="green"),
+    axs.plot([upper_x, lower_x],[upper_y, lower_y],markersize=8, marker='*', color="green"),
     axs.axline((0, poly1d_fn(0)), slope=m)
-    # axs.imshow(tmp_contour_image, cmap="Greys")
     axs.plot([tl_x, tl_x+ width, tl_x+ width, tl_x, tl_x], [tl_y, tl_y, tl_y +height, tl_y + height, tl_y])
-    axs.plot([tl_x], [bb_div_y], marker="*", color="green", markersize=10)
+    axs.plot([tl_x], [bb_div_y], marker="*", color="orange", markersize=10)
     # axs.legend() 
     pos = axs.imshow(contour_image, cmap="Greys")
     fig.colorbar(pos, ax=axs)
+
+    folder = "closed_instability"
+    dir_path = os.path.join(config["data_path"], folder, case)
+    if os.path.exists(dir_path) is False:
+        os.makedirs(dir_path)
+        logging.info(f"Creating dir {folder} for case {case}")
+    if config["save_intermediate"]:
+        fig.savefig(os.path.join(dir_path, file_name + ".png"))
     if config["debug"] == False:
         plt.close(fig)
 
     if upper != (0,0) and lower != (0,0):
         image_array = cv2.line(image_array, lower, upper, color=(1,0,0), thickness=5)
     
+    tmp_image = sitk.GetImageFromArray(image_array)
+    cam_seed = [(cX,cY)]
+    px_val = tmp_image.GetPixel(cam_seed[0])
+    logging.info(f"Seed value: {px_val}")
+    if px_val == 1:
+        cam_seed = [(cX, int(poly1d_fn(cX)))]
+        px_val = tmp_image.GetPixel(cam_seed[0])
+        logging.info(f"New seed value: {px_val}")
+    
 
     fig, axs = plt.subplots()
     axs.set_title(f"Closed instability")
     axs.plot([cX],[cY],markersize=10, marker='*', color="red"),
+    axs.plot([cX],[poly1d_fn(cX)],markersize=10, marker='*', color="red"),
     # axs.plot([upper_x, lower_x],[upper_y, lower_y],markersize=10, marker='.', color="green")
     pos = axs.imshow(image_array, cmap="Greys")
     fig.colorbar(pos, ax=axs)
     if config["debug"] == False:
         plt.close(fig)
 
-    tmp_image = sitk.GetImageFromArray(image_array)
-
-    cam_seed = [(cX,cY)]
-
-    px_val = tmp_image.GetPixel(cam_seed[0])
-    logging.info(f"Seed value: {px_val}")
     insta_image = sitk.ConnectedThreshold(
         image1=tmp_image,
         seedList=cam_seed,
@@ -455,17 +459,6 @@ def close_instability(config, case, base_image, file_name, cam_image):
     if config["debug"] == False:
         plt.close(fig)
     
-    folder = "closed_instability"
-    dir_path = os.path.join(config["data_path"], folder, case)
-    if os.path.exists(dir_path) is False:
-        os.makedirs(dir_path)
-        logging.info(f"Creating dir {folder} for case {case}")
-    if config["save_intermediate"]:
-        fig.savefig(os.path.join(dir_path, file_name + ".png"))
-        # plt.imsave(os.path.join(dir_path, file_name + ".png"), image_array, cmap="Greys", dpi=1200)
-    if config["debug"] == False:
-        plt.close(fig)
-
     return status, sitk.GetImageFromArray(image_array)
 
 def refine_instability(config, case, base_image, file_name):
@@ -602,14 +595,103 @@ def segment_camera(config, case, base_image, file_name):
     Function that segements instability from an image
     """
     cam_seed = [(10,10)]
-
     px_val = base_image.GetPixel(cam_seed[0])
-    logging.info(f"Cam seed value: {px_val}")
+
+    insta_seed = [(1450,1200)]
+    insta_px_val = base_image.GetPixel(insta_seed[0])
+    logging.info(f"Insta seed value: {insta_px_val}")
+
+    fig, axs = plt.subplots()
+    axs.set_title(f"Base Image {file_name.split('_')[0]}")
+    axs.imshow(sitk.GetArrayViewFromImage(base_image), cmap="gray")
+    if config["debug"] == False:
+        plt.close(fig)
+
+    upper_start = 45
+
+     # initial segmentation
     cam_image = sitk.ConnectedThreshold(
-        image1=base_image,
+            image1=base_image,
+            seedList=cam_seed,
+            lower=0,
+            upper=upper_start,
+            replaceValue=1
+        )
+
+    px_n, px_count = np.unique(sitk.GetArrayFromImage(cam_image), return_counts=True)
+
+    if len(px_n) == 1:
+        return base_image, False
+    
+    px_count_old = px_count[1]
+    delta = px_count[1] / px_count_old
+    i = 0
+    step = 1
+    tmp_step = 0
+    step_thresh = 0.5
+    new_limit = upper_start
+    delta_data = {
+        "deltas" : [delta],
+        "limits" : [upper_start+step*i]
+    }
+
+    cam_array = sitk.GetArrayFromImage(cam_image)
+    # get corner values to check if segementation has run to boundary
+    px_offset = 50
+    lr_cor_val = cam_image.GetPixel(cam_array.shape[1]- px_offset, cam_array.shape[0]- px_offset)
+    ur_cor_val = cam_image.GetPixel(cam_array.shape[1]- px_offset, px_offset)
+
+
+    while tmp_step < step_thresh and (lr_cor_val == 0 or ur_cor_val == 0):
+        new_limit = upper_start+step*i
+
+        lr_cor_val = cam_image.GetPixel(cam_array.shape[1]- px_offset, cam_array.shape[0]- px_offset)
+        ur_cor_val = cam_image.GetPixel(cam_array.shape[1]- px_offset, px_offset)
+
+        cam_image = sitk.ConnectedThreshold(
+            image1=base_image,
+            seedList=cam_seed,
+            lower=0,
+            upper=new_limit,
+            replaceValue=1
+        )
+        px_n, px_count = np.unique(sitk.GetArrayFromImage(cam_image), return_counts=True)
+        if len(px_n) == 1:
+            return base_image, False
+        delta = px_count[1] / px_count_old
+        tmp_step = abs(delta_data["deltas"][-1] - delta)
+        delta_data["limits"].append(new_limit)
+        delta_data["deltas"].append(delta)
+
+        # if delta > 1.1:
+        #     insta_proc_img = sitk.LabelOverlay(base_image, cam_image)
+        #     fig, axs = plt.subplots()
+        #     axs.set_title(f"Cam Image {int(file_name.split('_')[0])} limit {new_limit} tmp_step {tmp_step.round(2)}")
+        #     axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
+        #     if config["debug"] == False:
+        #         plt.close(fig)
+
+        px_count_old = px_count[1]
+        if tmp_step > step_thresh and (lr_cor_val == 1 or ur_cor_val == 1):
+            logging.info(f"Limit: {new_limit} delta = {delta}")
+            insta_proc_img = sitk.LabelOverlay(base_image, cam_image)
+            fig, axs = plt.subplots()
+            axs.set_title(f"Cam Image {int(file_name.split('_')[0])} limit {new_limit} tmp_step {tmp_step.round(2)}")
+            axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
+            if config["debug"] == False:
+                plt.close(fig)
+        i += 1        
+
+    # final segmentation
+    tmp_delta = pd.DataFrame(delta_data)
+    max_pos = tmp_delta.query(f"limits < 70")["deltas"].idxmax()
+    new_limit = int(tmp_delta["limits"][max_pos])
+    logging.info(f"Cam final upper value {new_limit}")
+    cam_image = sitk.ConnectedThreshold(
+    image1=base_image,
         seedList=cam_seed,
         lower=0,
-        upper=55,
+        upper=new_limit,
         replaceValue=1
     )
     uni_vals = np.unique(sitk.GetArrayFromImage(cam_image))
@@ -629,6 +711,24 @@ def segment_camera(config, case, base_image, file_name):
         fig.savefig(os.path.join(dir_path, file_name + ".png"))
     if config["debug"] == False:
         plt.close(fig)
+
+    # save delta data
+    fig, axs = plt.subplots()
+    axs.set_title(f"Cam Deltas {file_name.split('_')[0]}")
+    axs.plot(delta_data["limits"], delta_data["deltas"])
+    axs.set_xlabel("upper_limits")
+    axs.set_ylabel("segmented pixel growth rate")
+    folder = "cam_delta_data"
+    dir_path = os.path.join(config["data_path"], folder, case)
+    if os.path.exists(dir_path) is False:
+        os.makedirs(dir_path)
+        logging.info(f"Creating dir {folder} for case {case}")
+    if config["save_intermediate"]:
+        fig.savefig(os.path.join(dir_path, file_name + ".png"))
+    
+    if config["debug"] == False:
+        plt.close(fig)
+
     return cam_image
 
 def segment_instability(config, case, base_image, file_name):
@@ -636,17 +736,9 @@ def segment_instability(config, case, base_image, file_name):
     Function that segements camera from base image
     """
     status = True
-    insta_seed = [(1450,1200)]
+    insta_seed = [(1450,1100), (1200,975), (1200,1175), (1350,975), (1350,1175)]
     px_val = base_image.GetPixel(insta_seed[0])
     logging.info(f"Insta seed value: {px_val}")
-
-    # uni_vals = np.unique(sitk.GetArrayFromImage(base_image))
-    # logging.info(f"Unique values blured img {uni_vals}")
-
-    # upper halt: [ 100, 224 ]
-    # lower right quadrant: [ 100, 230 ]
-    # lower left quad [ 100, 235 ]
-
     lower_limit = 1
     if px_val > 230:
         return base_image, False
@@ -660,7 +752,8 @@ def segment_instability(config, case, base_image, file_name):
             upper=upper_start,
             replaceValue=1
         )
-    px_n, px_count = np.unique(sitk.GetArrayFromImage(insta_image), return_counts=True)
+    insta_array = sitk.GetArrayFromImage(insta_image)
+    px_n, px_count = np.unique(insta_array, return_counts=True)
 
     if len(px_n) == 1:
         return base_image, False
@@ -669,12 +762,24 @@ def segment_instability(config, case, base_image, file_name):
     delta = px_count[1] / px_count_old
     i = 0
     step = 5
+    tmp_step = 0
+    step_thresh = 0.5
+    new_limit = upper_start
     delta_data = {
         "deltas" : [delta],
         "limits" : [upper_start+step*i]
     }
-    while delta < 2.0:
+
+    # get corner values to check if segementation has run to boundary
+    px_offset = 50
+    lr_cor_val = insta_image.GetPixel(insta_array.shape[1]- px_offset, insta_array.shape[0]- px_offset)
+    ur_cor_val = insta_image.GetPixel(insta_array.shape[1]- px_offset, px_offset)
+
+    while tmp_step < step_thresh and (lr_cor_val == 0 or ur_cor_val == 0):
         new_limit = upper_start+step*i
+        lr_cor_val = insta_image.GetPixel(insta_array.shape[1]- px_offset, insta_array.shape[0]- px_offset)
+        ur_cor_val = insta_image.GetPixel(insta_array.shape[1]- px_offset, px_offset)
+
         insta_image = sitk.ConnectedThreshold(
             image1=base_image,
             seedList=insta_seed,
@@ -686,11 +791,30 @@ def segment_instability(config, case, base_image, file_name):
         if len(px_n) == 1:
             return base_image, False
         delta = px_count[1] / px_count_old
+        tmp_step = abs(delta_data["deltas"][-1] - delta)
         delta_data["limits"].append(new_limit)
         delta_data["deltas"].append(delta)
         px_count_old = px_count[1]
-        logging.debug(f"Limit: {new_limit} delta = {delta}")
+        if tmp_step > step_thresh and (lr_cor_val == 1 or ur_cor_val == 1):
+            logging.info(f"Limit: {new_limit} delta = {delta}")
+            insta_proc_img = sitk.LabelOverlay(base_image, insta_image)
+            fig, axs = plt.subplots()
+            axs.set_title(f"Insta Image {int(file_name.split('_')[0])} limit {new_limit} last_delta {delta.round(2)}")
+            axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
+            
+            if config["debug"] == False:
+                plt.close(fig)
         i += 1
+        
+        
+        # plot steps for debuging
+        
+        # insta_proc_img = sitk.LabelOverlay(base_image, insta_image)
+        # fig, axs = plt.subplots()
+        # axs.set_title(f"Insta Image {int(file_name.split('_')[0])} limit {new_limit} last_delta {delta.round(2)}")
+        # axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
+        # if config["debug"] == False:
+        #     plt.close(fig)
         
 
     # final segmentation
@@ -702,13 +826,19 @@ def segment_instability(config, case, base_image, file_name):
         upper=new_limit,
         replaceValue=1
     )
-    uni_vals = np.unique(sitk.GetArrayFromImage(insta_image))
-    logging.info(f"Unique values insta {uni_vals}")
+    seg_array = sitk.GetArrayFromImage(insta_image)
+    uni_vals, uni_counts = np.unique(seg_array, return_counts=True)
+
+    if len(uni_vals) > 1 and uni_counts[-1] < 100:
+        return base_image, False 
+    logging.info(f"Unique values insta {uni_vals}, {uni_counts}")
 
     insta_proc_img = sitk.LabelOverlay(base_image, insta_image)
     
     fig, axs = plt.subplots()
     axs.set_title(f"Insta Image {int(file_name.split('_')[0])} limit {new_limit} last_delta {delta.round(2)}")
+    for ele in insta_seed:
+        axs.plot([ele[0]], [ele[1]], marker="*", markersize=8, color="blue")
     axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
     folder = "segmented_instability"
     dir_path = os.path.join(config["data_path"], folder, case)
@@ -722,11 +852,11 @@ def segment_instability(config, case, base_image, file_name):
 
     # save delta data
     fig, axs = plt.subplots()
-    axs.set_title(f"Detas {file_name.split('_')[0]}")
+    axs.set_title(f"Insta Deltas {file_name.split('_')[0]}")
     axs.plot(delta_data["limits"], delta_data["deltas"])
     axs.set_xlabel("upper_limits")
     axs.set_ylabel("segmented pixel growth rate")
-    folder = "delta_data"
+    folder = "insta_delta_data"
     dir_path = os.path.join(config["data_path"], folder, case)
     if os.path.exists(dir_path) is False:
         os.makedirs(dir_path)
@@ -760,6 +890,13 @@ def make_histo(config, case, folder, name) -> bool:
         plt.close()
     return True
 
+def remove_empty_folders(path_abs):
+    walk = list(os.walk(path_abs))
+    for path, _, _ in walk[::-1]:
+        if len(os.listdir(path)) == 0:
+            os.rmdir(path)
+            logging.info(f"Removed {path}")
+
 def create_animation(config, case, data_folder):
     """
     Function that creates animation video for images
@@ -791,4 +928,5 @@ def create_animation(config, case, data_folder):
 
 if __name__ == "__main__":
     calc_case_ratio()
-    # get_all_cases(get_config())
+    remove_empty_folders(os.path.join(sys.path[0], "data"))
+    remove_empty_folders(os.path.join(sys.path[0], "results"))
