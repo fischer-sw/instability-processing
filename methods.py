@@ -25,12 +25,12 @@ def get_image_files(config, case, folder):
         dir_path = os.path.join(config["raw_data_path"])
     else:
         dir_path = os.path.join(config["data_path"])
-    if os.path.exists(dir_path) == False:
+    if os.path.exists(dir_path) is False:
         logging.error(f"Data directory {dir_path} doesn't exsist. Please check config for valid path.")
         return []
 
     dat_path = os.path.join(dir_path, folder, case)
-    if os.path.exists(dat_path) == False:
+    if os.path.exists(dat_path) is False:
         logging.warning(f"No data found for case {case} at {dat_path}")
         return []
     images = glob.glob(os.path.join(dat_path, "*.tiff"))
@@ -113,7 +113,7 @@ def create_intermediate_folders(config, cas):
     for fld in folders:
 
         folder_path = os.path.join(config["data_path"], fld, cas)
-        if os.path.exists(folder_path) == False:
+        if os.path.exists(folder_path) is False:
             os.makedirs(folder_path)
 
 def get_all_cases(config):
@@ -166,13 +166,13 @@ def process_image(img_name, config, cas) -> bool:
     Function that processes an image
     """
     final_dir_path = os.path.join(config["results_path"], "final_data", cas)
-    if os.path.exists(final_dir_path) == False:
+    if os.path.exists(final_dir_path) is False:
         os.makedirs(final_dir_path)
     res_csv_folder = os.path.join(final_dir_path, "instabilities")
-    if os.path.exists(res_csv_folder) == False:
+    if os.path.exists(res_csv_folder) is False:
         os.makedirs(res_csv_folder)
     res_csv_path = os.path.join(res_csv_folder ,img_name + ".png")
-    if os.path.exists(res_csv_path) and config["new_files"] == False:
+    if os.path.exists(res_csv_path) and config["new_files"] is False:
         logging.info(f"Already processed image {img_name} for case {cas}")
         return True
 
@@ -197,33 +197,33 @@ def process_image(img_name, config, cas) -> bool:
     # replace all found cam pixel with 0 in base image
     base_array[cam_array == 1] = 0
     base_img = sitk.GetImageFromArray(base_array)
-    insta_img, status = segment_instability(config, cas, base_img, img_name)
-    if status == False:
+    insta_img, status = segment_instability(config, cas, base_img, img_name, cam_img)
+    if status is False:
         logging.error(f"No instability found in {img_name}")
         return status
 
     # hull = convex_hull(config, cas, insta_img, img_name)
     new_insta_img, status = refine_instability(config, cas, insta_img, img_name)
-    if status == False:
+    if status is False:
         logging.error(f"Instability found in {img_name} is more than one blob")
         return status
     
     status, final_insta_img = close_instability(config, cas, new_insta_img, img_name, cam_img)
-    if status == False:
+    if status is False:
         logging.error(f"Closing instability in {img_name} failed")
         return status
     
     contours = get_contour(config, cas, final_insta_img, img_name)
     df = pd.DataFrame(contours)
     con_csv_folder = os.path.join(final_dir_path, "contours")
-    if os.path.exists(con_csv_folder) == False:
+    if os.path.exists(con_csv_folder) is False:
         os.makedirs(con_csv_folder)
     con_path = os.path.join(con_csv_folder, img_name + ".png")
     plt.imsave(con_path, contours, cmap="Greys", dpi=1200)
 
     res_array = sitk.GetArrayFromImage(final_insta_img)
     final_img_path = os.path.join(config["data_path"], "final_images", cas)
-    if os.path.exists(final_img_path) == False:
+    if os.path.exists(final_img_path) is False:
         os.makedirs(final_img_path)
     
     plt.imsave(res_csv_path, res_array, cmap="Greys", dpi=1200)
@@ -294,7 +294,7 @@ def get_contour(config, case, base_image, file_name):
     axs.set_title(f"Contour Image {file_name.split('_')[0]}")
     pos = axs.imshow(contour_image, cmap="Greys")
     fig.colorbar(pos, ax=axs)
-    if config["debug"] == False:
+    if config["debug"] is False:
         plt.close(fig)
 
     folder = "contour"
@@ -363,7 +363,7 @@ def close_instability(config, case, base_image, file_name, cam_image):
         axs.axline((0, poly1d_fn(0)), slope=m)
         pos = axs.imshow(cam_array, cmap="Greys")
         fig.colorbar(pos, ax=axs)
-        if config["debug"] == False:
+        if config["debug"] is False:
             plt.close(fig)
 
         counter += 1        
@@ -416,7 +416,7 @@ def close_instability(config, case, base_image, file_name, cam_image):
         logging.info(f"Creating dir {folder} for case {case}")
     if config["save_intermediate"]:
         fig.savefig(os.path.join(dir_path, file_name + ".png"))
-    if config["debug"] == False:
+    if config["debug"] is False:
         plt.close(fig)
 
     if upper != (0,0) and lower != (0,0):
@@ -439,7 +439,7 @@ def close_instability(config, case, base_image, file_name, cam_image):
     # axs.plot([upper_x, lower_x],[upper_y, lower_y],markersize=10, marker='.', color="green")
     pos = axs.imshow(image_array, cmap="Greys")
     fig.colorbar(pos, ax=axs)
-    if config["debug"] == False:
+    if config["debug"] is False:
         plt.close(fig)
 
     insta_image = sitk.ConnectedThreshold(
@@ -456,7 +456,7 @@ def close_instability(config, case, base_image, file_name, cam_image):
     axs.set_title(f"Filled instability")
     pos = axs.imshow(image_array, cmap="Greys")
     fig.colorbar(pos, ax=axs)
-    if config["debug"] == False:
+    if config["debug"] is False:
         plt.close(fig)
     
     return status, sitk.GetImageFromArray(image_array)
@@ -507,7 +507,7 @@ def refine_instability(config, case, base_image, file_name):
     axs.set_title(f"Contour Image after dil/er {file_name.split('_')[0]}")
     pos = axs.imshow(final_array, cmap="Greys")
     fig.colorbar(pos, ax=axs)
-    if config["debug"] == False:
+    if config["debug"] is False:
         plt.close(fig)
 
     if len(contours) != 1:
@@ -541,7 +541,7 @@ def refine_instability(config, case, base_image, file_name):
         axs.set_title(f"Contour Image {file_name.split('_')[0]}")
         pos = axs.imshow(contour_image, cmap="Greys")
         fig.colorbar(pos, ax=axs)
-        if config["debug"] == False:
+        if config["debug"] is False:
             plt.close(fig)
         status = False
         return base_image, status
@@ -558,7 +558,7 @@ def refine_instability(config, case, base_image, file_name):
         logging.info(f"Creating dir {folder} for case {case}")
     if config["save_intermediate"]:
         fig.savefig(os.path.join(dir_path, file_name + ".png"))
-    if config["debug"] == False:
+    if config["debug"] is False:
         plt.close(fig)
     tmp_image = sitk.GetImageFromArray(final_array)    
     return tmp_image, status
@@ -584,7 +584,7 @@ def convex_hull(config, case, base_image, file_name):
         logging.info(f"Creating dir {folder} for case {case}")
     if config["save_intermediate"]:
         fig.savefig(os.path.join(dir_path, file_name + ".png"))
-    if config["debug"] == False:
+    if config["debug"] is False:
         plt.close(fig)
 
     return chull
@@ -604,7 +604,7 @@ def segment_camera(config, case, base_image, file_name):
     fig, axs = plt.subplots()
     axs.set_title(f"Base Image {file_name.split('_')[0]}")
     axs.imshow(sitk.GetArrayViewFromImage(base_image), cmap="gray")
-    if config["debug"] == False:
+    if config["debug"] is False:
         plt.close(fig)
 
     upper_start = 45
@@ -668,7 +668,7 @@ def segment_camera(config, case, base_image, file_name):
         #     fig, axs = plt.subplots()
         #     axs.set_title(f"Cam Image {int(file_name.split('_')[0])} limit {new_limit} tmp_step {tmp_step.round(2)}")
         #     axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
-        #     if config["debug"] == False:
+        #     if config["debug"] is False:
         #         plt.close(fig)
 
         px_count_old = px_count[1]
@@ -678,7 +678,7 @@ def segment_camera(config, case, base_image, file_name):
             fig, axs = plt.subplots()
             axs.set_title(f"Cam Image {int(file_name.split('_')[0])} limit {new_limit} tmp_step {tmp_step.round(2)}")
             axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
-            if config["debug"] == False:
+            if config["debug"] is False:
                 plt.close(fig)
         i += 1        
 
@@ -709,7 +709,7 @@ def segment_camera(config, case, base_image, file_name):
         logging.info(f"Creating dir {folder} for case {case}")
     if config["save_intermediate"]:
         fig.savefig(os.path.join(dir_path, file_name + ".png"))
-    if config["debug"] == False:
+    if config["debug"] is False:
         plt.close(fig)
 
     # save delta data
@@ -726,18 +726,92 @@ def segment_camera(config, case, base_image, file_name):
     if config["save_intermediate"]:
         fig.savefig(os.path.join(dir_path, file_name + ".png"))
     
-    if config["debug"] == False:
+    if config["debug"] is False:
         plt.close(fig)
 
     return cam_image
 
-def segment_instability(config, case, base_image, file_name):
+def segment_instability(config, case, base_image, file_name, cam_seg):
     """
     Function that segements camera from base image
     """
+
+    
+
+    tmp_image = sitk.BinaryErode(
+        image1=cam_seg,
+        backgroundValue=0.0,
+        foregroundValue=1.0,
+        boundaryToForeground=True,
+        kernelRadius=(1,20)
+    )
+
+    tmp_image = sitk.BinaryDilate(
+        image1=tmp_image,
+        backgroundValue=0.0,
+        foregroundValue=1.0,
+        boundaryToForeground=True,
+        kernelRadius=(1,20)
+    )
+
+
+    cam_array = sitk.GetArrayFromImage(tmp_image)
+    boundary = 400
+    max_x = cam_array.shape[0]
+    max_y = cam_array.shape[1]
+    # set boundary values to 0 to get rid of artifacts
+    # cam_array[:boundary + max_x-boundary:,:boundary + max_y - boundary:] = 0
+    cam_array[:boundary, :] = 0
+    cam_array[:, :boundary] = 0
+    cam_array[max_x-boundary:,:] = 0
+    cam_array[:, max_y - boundary:] = 0
+    # get bounding box of camera
+        # get contours
+    contours, hierarchy = cv2.findContours(image=cam_array, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_NONE)
+    cont = contours[0]
+    bound_rect = cv2.boundingRect(cont)
+    logging.info(bound_rect)
+
+    tl_x = bound_rect[0]
+    tl_y = bound_rect[1]
+    width = bound_rect[2]
+    height = bound_rect[3]
+
+    # get seeds for instabiltiy segmentation around camera
+
+    # get axes of camera
+    y,x = np.where(cam_array == 1)
+    coef = np.polyfit(x,y,1)
+    m = coef[0]
+    poly1d_fn = np.poly1d(coef)
+
+    seeds = []
+    offset = 20
+    seeds.append((tl_x + width + offset, int(poly1d_fn(tl_x + width + offset))))
+    seeds.append((tl_x + 50, int(poly1d_fn(tl_x + 50) - height/2 - offset)))
+    seeds.append((tl_x + 50, int(poly1d_fn(tl_x + 50) + height/2 + offset)))
+    seeds.append((tl_x + 150, int(poly1d_fn(tl_x + 150) - height/2 - offset)))
+    seeds.append((tl_x + 150, int(poly1d_fn(tl_x + 150) + height/2 + offset)))
+    seeds.append((tl_x + 225, int(poly1d_fn(tl_x + 225) - height/2 - offset)))
+    seeds.append((tl_x + 225, int(poly1d_fn(tl_x + 225) + height/2 + offset)))
+    logging.info(f"Insta Seeds : {seeds}")
+    fig, axs = plt.subplots()
+    axs.set_title("Cam position")
+    for ele in seeds:
+        axs.plot([ele[0]], [ele[1]], marker="*", markersize=8, color="blue")
+    axs.axline((0, poly1d_fn(0)), slope=m)
+    axs.plot([tl_x, tl_x+ width, tl_x+ width, tl_x, tl_x], [tl_y, tl_y, tl_y +height, tl_y + height, tl_y])
+    pos = axs.imshow(cam_array, cmap="Greys")
+    fig.colorbar(pos, ax=axs)
+    if config["debug"] is False:
+        plt.close(fig)
+
+
     status = True
     # insta_seed = [(1450,1100), (1200,975), (1200,1175), (1350,975), (1350,1175)]
-    insta_seed = [(1450,1100)]
+    # insta_seed = [(1450,1100), (1200,975)]
+    insta_seed = seeds
+
     px_vals = np.array([base_image.GetPixel(ele) for ele in insta_seed])
     px_val = px_vals[(px_vals > 0) & (px_vals < 230)]
     if px_val.size == 0:
@@ -808,18 +882,18 @@ def segment_instability(config, case, base_image, file_name):
             axs.set_title(f"Insta Image {int(file_name.split('_')[0])} limit {new_limit} last_delta {delta.round(2)}")
             axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
             
-            if config["debug"] == False:
+            if config["debug"] is False:
                 plt.close(fig)
         i += 1
         
-        
+        # get image for every iteration
          
-        insta_proc_img = sitk.LabelOverlay(base_image, insta_image)
-        fig, axs = plt.subplots()
-        axs.set_title(f"Insta Image {int(file_name.split('_')[0])} limit {new_limit} last_delta {delta.round(2)}")
-        axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
-        if config["debug"] == False:
-            plt.close(fig)
+        # insta_proc_img = sitk.LabelOverlay(base_image, insta_image)
+        # fig, axs = plt.subplots()
+        # axs.set_title(f"Insta Image {int(file_name.split('_')[0])} limit {new_limit} last_delta {delta.round(2)}")
+        # axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
+        # if config["debug"] is False:
+        #     plt.close(fig)
         
 
     # final segmentation
@@ -852,7 +926,7 @@ def segment_instability(config, case, base_image, file_name):
         logging.info(f"Creating dir {folder} for case {case}") 
     if config["save_intermediate"]:
         fig.savefig(os.path.join(dir_path, file_name + ".png"))
-    if config["debug"] == False:
+    if config["debug"] is False:
         plt.close(fig)
 
     # save delta data
@@ -869,7 +943,7 @@ def segment_instability(config, case, base_image, file_name):
     if config["save_intermediate"]:
         fig.savefig(os.path.join(dir_path, file_name + ".png"))
     
-    if config["debug"] == False:
+    if config["debug"] is False:
         plt.close(fig)
 
     return insta_image, status
@@ -880,7 +954,7 @@ def make_histo(config, case, folder, name) -> bool:
     """
     
     base_path=os.path.join(config["data_path"], "histogramms", folder, case)
-    if os.path.exists(base_path) == False:
+    if os.path.exists(base_path) is False:
         os.makedirs(base_path)
     hist_path = os.path.join(base_path, name + "_hist.png")
     if os.path.exists(hist_path):
@@ -891,7 +965,7 @@ def make_histo(config, case, folder, name) -> bool:
     plt.hist(nums, nums, weights=counts)   
     plt.savefig(hist_path)
     logging.info(f"Created histogramm for image {name} in folder {folder}")
-    if config["debug"] == False:
+    if config["debug"] is False:
         plt.close()
     return True
 
@@ -912,7 +986,7 @@ def create_animation(config, case, data_folder):
         logging.warning(f"No images found to create animation for case {case}.")
         return
     animation_folder_path = os.path.join(config["results_path"], "animations", case)
-    if os.path.exists(animation_folder_path) == False:
+    if os.path.exists(animation_folder_path) is False:
         os.makedirs(animation_folder_path)
 
     if data_folder == "png_cases":
