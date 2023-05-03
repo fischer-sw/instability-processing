@@ -288,6 +288,13 @@ def get_contour(config, case, base_image, file_name):
 
     contours, hierarchy = cv2.findContours(image=base_array, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_SIMPLE)
 
+    # only get the longest contour
+    length = 0
+    for ele in contours:
+        if len(ele) > length:
+            contours = [ele]
+            length = len(ele)
+
     contour_image = cv2.drawContours(image=np.zeros(base_array.shape), contours=contours, contourIdx=-1, color=(1, 0, 0), thickness=7, lineType=cv2.LINE_AA)
     # cv2.imshow("Contour image", contour_image)
     fig, axs = plt.subplots()
@@ -346,12 +353,17 @@ def close_instability(config, case, base_image, file_name, cam_image):
     counter = 1
     m = 90
 
-    while abs(m) > 5 and counter < 11:
-        
+
+    # get slope and function of camera segementation. Only uses left pixels of segementation
+    while abs(m) > 5 and counter < 11:    
         cam_array = sitk.GetArrayFromImage(cam_image)
-        cam_array[:,:tl_x-counter*2*step] = 0 
-        # cam_array[:,tl_x+counter*step:] = 0
-        cam_array[:,tl_x:] = 0
+        # cam_array[:,:tl_x-counter*2*step] = 0 
+        # # cam_array[:,tl_x+counter*step:] = 0
+        # cam_array[:,tl_x:] = 0
+        tmp_y, tmp_x = np.where(cam_array == 1)
+        x_lim = tmp_x.min()
+        cam_array[:,:x_lim] = 0
+        cam_array[:,x_lim + counter*step:] = 0
 
         y,x = np.where(cam_array == 1)
         coef = np.polyfit(x,y,1)
@@ -399,7 +411,7 @@ def close_instability(config, case, base_image, file_name, cam_image):
     lower = (lower_x, lower_y)
 
     fig, axs = plt.subplots()
-    axs.set_title(f"Contours + Center")
+    axs.set_title("Contours + Center")
     axs.plot([cX],[cY],markersize=10, marker='*', color="red"),
     axs.plot([upper_x, lower_x],[upper_y, lower_y],markersize=8, marker='*', color="green"),
     axs.axline((0, poly1d_fn(0)), slope=m)
@@ -433,7 +445,7 @@ def close_instability(config, case, base_image, file_name, cam_image):
     
 
     fig, axs = plt.subplots()
-    axs.set_title(f"Closed instability")
+    axs.set_title("Closed instability")
     axs.plot([cX],[cY],markersize=10, marker='*', color="red"),
     axs.plot([cX],[poly1d_fn(cX)],markersize=10, marker='*', color="red"),
     # axs.plot([upper_x, lower_x],[upper_y, lower_y],markersize=10, marker='.', color="green")
@@ -452,8 +464,33 @@ def close_instability(config, case, base_image, file_name, cam_image):
     insta_array = sitk.GetArrayFromImage(insta_image)
 
     image_array = image_array + insta_array
+
+
+    # fill all holes
+    # get outer contour
+    contours, hierarchy = cv2.findContours(image=image_array, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_SIMPLE)
+
+    # only get the longest contour
+    length = 0
+    for ele in contours:
+        if len(ele) > length:
+            contours = [ele]
+            length = len(ele)
+    contour_image = cv2.drawContours(image=np.zeros(image_array.shape), contours=contours, contourIdx=0, color=(1, 0, 0), thickness=7, lineType=cv2.LINE_AA)
+
+    # fill everything inside outer contour
+    contour_image = sitk.GetImageFromArray(contour_image)
+    insta_image = sitk.ConnectedThreshold(
+        image1=contour_image,
+        seedList=cam_seed,
+        lower=0,
+        upper=0.9,
+        replaceValue=1
+    )
+    image_array = sitk.GetArrayFromImage(insta_image)
+
     fig, axs = plt.subplots()
-    axs.set_title(f"Filled instability")
+    axs.set_title("Filled instability")
     pos = axs.imshow(image_array, cmap="Greys")
     fig.colorbar(pos, ax=axs)
     if config["debug"] is False:
@@ -473,7 +510,7 @@ def refine_instability(config, case, base_image, file_name):
         backgroundValue=0.0,
         foregroundValue=1.0,
         boundaryToForeground=True,
-        kernelRadius=(1,2)
+        kernelRadius=(1,15)
     )
 
     tmp_image = sitk.BinaryDilate(
@@ -481,7 +518,7 @@ def refine_instability(config, case, base_image, file_name):
         backgroundValue=0.0,
         foregroundValue=1.0,
         boundaryToForeground=True,
-        kernelRadius=(1,2)
+        kernelRadius=(1,15)
     )
 
     # get rid of small artifacts    
@@ -500,13 +537,21 @@ def refine_instability(config, case, base_image, file_name):
          )
     
     final_array = sitk.GetArrayViewFromImage(tmp_image)
+    bla = final_array.copy()
+    offset = 100
+    bla[:offset, :] = 0
+    bla[bla.shape[0]- offset: bla.shape[0], :] = 0
+    bla[:, :offset] = 0
+    bla[:, bla.shape[1]- offset: bla.shape[1]] = 0
+    final_array = bla
+
     contours, hierarchy = cv2.findContours(image=final_array, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_NONE)
     tmp_array = final_array.copy()
 
     fig, axs = plt.subplots()
     axs.set_title(f"Contour Image after dil/er {file_name.split('_')[0]}")
-    pos = axs.imshow(final_array, cmap="Greys")
-    fig.colorbar(pos, ax=axs)
+    axs.imshow(tmp_array, cmap="Greys")
+    # fig.colorbar(pos, ax=axs)
     if config["debug"] is False:
         plt.close(fig)
 
@@ -594,29 +639,59 @@ def segment_camera(config, case, base_image, file_name):
     """
     Function that segements instability from an image
     """
+
+    # cam corner seed
     cam_seed = [(10,10)]
     px_val = base_image.GetPixel(cam_seed[0])
+    logging.info(f"Cam seed value: {px_val}")
 
-    insta_seed = [(1450,1200)]
+    # check for seed inside camera
+    fin_val = 255
+    fin_x = 0
+    fin_y = 0
+    test_y = np.linspace(750,1500,100).round(0)
+    test_x = np.linspace(750,1700,100).round(0)
+    for x in test_x:
+        for y in test_y:
+            test_seed = [(int(x),int(y))]
+            px_val = base_image.GetPixel(test_seed[0])
+            if px_val < fin_val:
+                fin_val = px_val
+                fin_x = int(x)
+                fin_y = int(y)
+
+    insta_seed = [(fin_x, fin_y)]
+    # cam middle seed
+    # insta_seed = [(1350,1150)]
     insta_px_val = base_image.GetPixel(insta_seed[0])
     logging.info(f"Insta seed value: {insta_px_val}")
 
     fig, axs = plt.subplots()
     axs.set_title(f"Base Image {file_name.split('_')[0]}")
-    axs.imshow(sitk.GetArrayViewFromImage(base_image), cmap="gray")
+    pos = axs.imshow(sitk.GetArrayViewFromImage(base_image), cmap="gray")
+    fig.colorbar(pos, ax=axs)
     if config["debug"] is False:
         plt.close(fig)
 
-    upper_start = 45
+    upper_start = insta_px_val + 1
 
      # initial segmentation
     cam_image = sitk.ConnectedThreshold(
             image1=base_image,
-            seedList=cam_seed,
+            seedList=insta_seed,
             lower=0,
             upper=upper_start,
             replaceValue=1
         )
+    logging.info("Initial Camera Segmentation")
+    insta_proc_img = sitk.LabelOverlay(base_image, cam_image)
+    fig, axs = plt.subplots()
+    axs.set_title(f"Initial Cam Seg {int(file_name.split('_')[0])}")
+    for ele in insta_seed:
+        axs.plot([ele[0]], [ele[1]], marker="*", markersize=8, color="blue")
+    axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
+    if config["debug"] is False:
+        plt.close(fig)
 
     px_n, px_count = np.unique(sitk.GetArrayFromImage(cam_image), return_counts=True)
 
@@ -632,7 +707,8 @@ def segment_camera(config, case, base_image, file_name):
     new_limit = upper_start
     delta_data = {
         "deltas" : [delta],
-        "limits" : [upper_start+step*i]
+        "limits" : [upper_start+step*i],
+        "px_count" : [0]
     }
 
     cam_array = sitk.GetArrayFromImage(cam_image)
@@ -641,16 +717,18 @@ def segment_camera(config, case, base_image, file_name):
     lr_cor_val = cam_image.GetPixel(cam_array.shape[1]- px_offset, cam_array.shape[0]- px_offset)
     ur_cor_val = cam_image.GetPixel(cam_array.shape[1]- px_offset, px_offset)
 
-
-    while tmp_step < step_thresh and (lr_cor_val == 0 or ur_cor_val == 0):
+    cam_pixels = 0
+    px_thresh = 4e4
+    while cam_pixels < px_thresh:
+    # while tmp_step < step_thresh and (lr_cor_val == 0 or ur_cor_val == 0) and cam_pixels < px_thresh:
         new_limit = upper_start+step*i
 
-        lr_cor_val = cam_image.GetPixel(cam_array.shape[1]- px_offset, cam_array.shape[0]- px_offset)
-        ur_cor_val = cam_image.GetPixel(cam_array.shape[1]- px_offset, px_offset)
+        # lr_cor_val = cam_image.GetPixel(cam_array.shape[1]- px_offset, cam_array.shape[0]- px_offset)
+        # ur_cor_val = cam_image.GetPixel(cam_array.shape[1]- px_offset, px_offset)
 
         cam_image = sitk.ConnectedThreshold(
             image1=base_image,
-            seedList=cam_seed,
+            seedList=insta_seed,
             lower=0,
             upper=new_limit,
             replaceValue=1
@@ -662,6 +740,9 @@ def segment_camera(config, case, base_image, file_name):
         tmp_step = abs(delta_data["deltas"][-1] - delta)
         delta_data["limits"].append(new_limit)
         delta_data["deltas"].append(delta)
+        tmp_px_n, tmp_px_count = np.unique(sitk.GetArrayFromImage(cam_image), return_counts=True)
+        cam_pixels = tmp_px_count[1]
+        delta_data["px_count"].append(cam_pixels)
 
         # if delta > 1.1:
         #     insta_proc_img = sitk.LabelOverlay(base_image, cam_image)
@@ -672,7 +753,7 @@ def segment_camera(config, case, base_image, file_name):
         #         plt.close(fig)
 
         px_count_old = px_count[1]
-        if tmp_step > step_thresh and (lr_cor_val == 1 or ur_cor_val == 1):
+        if cam_pixels > px_thresh:
             logging.info(f"Limit: {new_limit} delta = {delta}")
             insta_proc_img = sitk.LabelOverlay(base_image, cam_image)
             fig, axs = plt.subplots()
@@ -683,13 +764,13 @@ def segment_camera(config, case, base_image, file_name):
         i += 1        
 
     # final segmentation
-    tmp_delta = pd.DataFrame(delta_data)
-    max_pos = tmp_delta.query(f"limits < 70")["deltas"].idxmax()
-    new_limit = int(tmp_delta["limits"][max_pos])
-    logging.info(f"Cam final upper value {new_limit}")
+    # tmp_delta = pd.DataFrame(delta_data)
+    # max_pos = tmp_delta.query("limits < 70")["deltas"].idxmax()
+    # new_limit = int(tmp_delta["limits"][max_pos])
+    # logging.info(f"Cam final upper value {new_limit}")
     cam_image = sitk.ConnectedThreshold(
     image1=base_image,
-        seedList=cam_seed,
+        seedList=insta_seed,
         lower=0,
         upper=new_limit,
         replaceValue=1
@@ -699,7 +780,7 @@ def segment_camera(config, case, base_image, file_name):
 
     cam_proc_img = sitk.LabelOverlay(base_image, cam_image)
     fig, axs = plt.subplots()
-    axs.set_title(f"Cam Image {file_name.split('_')[0]}")
+    axs.set_title(f"Cam Image {file_name.split('_')[0]} limit {new_limit}")
     axs.imshow(sitk.GetArrayViewFromImage(cam_proc_img))
 
     folder = "segmented_camera"
@@ -729,14 +810,32 @@ def segment_camera(config, case, base_image, file_name):
     if config["debug"] is False:
         plt.close(fig)
 
+    # show px counts
+
+    fig, axs = plt.subplots()
+    axs.set_title(f"Px Count {file_name.split('_')[0]}")
+    axs.plot(delta_data["limits"], delta_data["px_count"])
+    axs.set_xlabel("upper_limits")
+    axs.set_ylabel("px_count")
+    folder = "cam_px_data"
+    dir_path = os.path.join(config["data_path"], folder, case)
+    if os.path.exists(dir_path) is False:
+        os.makedirs(dir_path)
+        logging.info(f"Creating dir {folder} for case {case}")
+    if config["save_intermediate"]:
+        fig.savefig(os.path.join(dir_path, file_name + ".png"))
+    
+    if config["debug"] is False:
+        plt.close(fig)
+    
+
     return cam_image
 
 def segment_instability(config, case, base_image, file_name, cam_seg):
     """
     Function that segements camera from base image
     """
-
-    
+    status = True
 
     tmp_image = sitk.BinaryErode(
         image1=cam_seg,
@@ -786,14 +885,29 @@ def segment_instability(config, case, base_image, file_name, cam_seg):
     poly1d_fn = np.poly1d(coef)
 
     seeds = []
-    offset = 20
-    seeds.append((tl_x + width + offset, int(poly1d_fn(tl_x + width + offset))))
-    seeds.append((tl_x + 50, int(poly1d_fn(tl_x + 50) - height/2 - offset)))
-    seeds.append((tl_x + 50, int(poly1d_fn(tl_x + 50) + height/2 + offset)))
-    seeds.append((tl_x + 150, int(poly1d_fn(tl_x + 150) - height/2 - offset)))
-    seeds.append((tl_x + 150, int(poly1d_fn(tl_x + 150) + height/2 + offset)))
-    seeds.append((tl_x + 225, int(poly1d_fn(tl_x + 225) - height/2 - offset)))
-    seeds.append((tl_x + 225, int(poly1d_fn(tl_x + 225) + height/2 + offset)))
+
+    # calculate seeds for instability
+    # set x values relative to left camera boundary    
+    seed_x = [tl_x + 50, tl_x + 150, tl_x + 225]
+
+    for ele in seed_x:
+        offset = 10
+        tmp_x = ele
+        tmp_y_up = int(poly1d_fn(ele) - height/2 - offset) 
+        tmp_y_low = int(poly1d_fn(ele) + height/2 + offset)
+        # shift y up and down until they or far enough away from camera 
+        while cam_array[tmp_y_up, tmp_x] != 0 and cam_array[tmp_y_low, tmp_x] != 0:
+            offset += 10
+            tmp_y_up = int(poly1d_fn(ele) - height/2 - offset) 
+            tmp_y_low = int(poly1d_fn(ele) + height/2 + offset)
+
+        # add a bit of extra distance
+        offset += 30
+        tmp_y_up = int(poly1d_fn(ele) - height/2 - offset) 
+        tmp_y_low = int(poly1d_fn(ele) + height/2 + offset)
+        seeds.append((ele, tmp_y_up))
+        seeds.append((ele, tmp_y_low))
+
     logging.info(f"Insta Seeds : {seeds}")
     fig, axs = plt.subplots()
     axs.set_title("Cam position")
@@ -806,14 +920,10 @@ def segment_instability(config, case, base_image, file_name, cam_seg):
     if config["debug"] is False:
         plt.close(fig)
 
-
-    status = True
-    # insta_seed = [(1450,1100), (1200,975), (1200,1175), (1350,975), (1350,1175)]
-    # insta_seed = [(1450,1100), (1200,975)]
     insta_seed = seeds
 
     px_vals = np.array([base_image.GetPixel(ele) for ele in insta_seed])
-    px_val = px_vals[(px_vals > 0) & (px_vals < 230)]
+    px_val = px_vals[(px_vals > 0) & (px_vals < 200)]
     if px_val.size == 0:
         return base_image, False
     else:

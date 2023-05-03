@@ -1,13 +1,13 @@
 {
     "gss_data_path": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\Image_Processing_for_Xanthan_Gum_Displacement",
-    "data_path" : "\\\\gssnas\\bigdata\\FWDT\\DFischer\\image_proc\\tmp_data",
-    "raw_data_path" : "\\\\gssnas\\bigdata\\FWDT\\DFischer\\image_proc\\raw_data",
-    "results_path": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\image_proc\\results",
+    "data_path" : "C:\\Users\\TPG247\\Documents\\Daniel Fischer\\insta_data\\tmp_data",
+    "raw_data_path" : "C:\\Users\\TPG247\\Documents\\Daniel Fischer\\insta_data\\raw_data",
+    "results_path": "C:\\Users\\TPG247\\Documents\\Daniel Fischer\\insta_results",
     "save_intermediate" : true,
     "new_files" : true,
     "debug" : true,
     "images": [
-        68
+        
     ],
     "test_images" : [
         8,
