@@ -88,7 +88,7 @@ def calc_case_ratio():
         if config["debug"]:
             parallel = False
         else:    
-            parallel = True
+            parallel = False
 
         if parallel:
             cpus = os.cpu_count()
@@ -97,9 +97,11 @@ def calc_case_ratio():
         else:
             for img in images:
                 status = process_image(img, config, cas)
-            
-        create_animation(config, cas, "final_images")
-        create_animation(config, cas, "png_cases")
+        
+        # if config["debug"]:
+        #     create_animation(config, cas, "contours")
+        #     create_animation(config, cas, "instabilities")
+        #     create_animation(config, cas, "png_cases")
 
     
 
@@ -113,6 +115,12 @@ def create_intermediate_folders(config, cas):
     for fld in folders:
 
         folder_path = os.path.join(config["data_path"], fld, cas)
+        if os.path.exists(folder_path) is False:
+            os.makedirs(folder_path)
+
+    final_folders = ["final_data"]
+    for fld in final_folders:
+        folder_path = os.path.join(config["results_path"], fld, cas)
         if os.path.exists(folder_path) is False:
             os.makedirs(folder_path)
 
@@ -391,6 +399,8 @@ def close_instability(config, case, base_image, file_name, cam_image):
     upper_y = tl_y
     for i in range(int(tl_y), int(bb_div_y)):
         tmp_line = image_array[i,:]
+        if len(np.where(tmp_line == 1)[0]) == 0:
+            break
         test = np.where(tmp_line == 1)[0][0]
         if test < upper_x:
             upper_x = test
@@ -403,6 +413,8 @@ def close_instability(config, case, base_image, file_name, cam_image):
 
     for i in range(int(bb_div_y), int(tl_y + height)):
         tmp_line = image_array[i,:]
+        if len(np.where(tmp_line == 1)[0]) == 0:
+            break
         test = np.where(tmp_line == 1)[0][0]
         if test < lower_x:
             lower_x = test
@@ -463,12 +475,12 @@ def close_instability(config, case, base_image, file_name, cam_image):
     )
     insta_array = sitk.GetArrayFromImage(insta_image)
 
-    image_array = image_array + insta_array
+    tmp_image_array = image_array + insta_array
 
 
     # fill all holes
     # get outer contour
-    contours, hierarchy = cv2.findContours(image=image_array, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_SIMPLE)
+    contours, hierarchy = cv2.findContours(image=tmp_image_array, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_SIMPLE)
 
     # only get the longest contour
     length = 0
@@ -476,18 +488,56 @@ def close_instability(config, case, base_image, file_name, cam_image):
         if len(ele) > length:
             contours = [ele]
             length = len(ele)
-    contour_image = cv2.drawContours(image=np.zeros(image_array.shape), contours=contours, contourIdx=0, color=(1, 0, 0), thickness=7, lineType=cv2.LINE_AA)
+    contour_image = cv2.drawContours(image=np.zeros(tmp_image_array.shape), contours=contours, contourIdx=0, color=(1, 0, 0), thickness=7, lineType=cv2.LINE_AA)
 
     # fill everything inside outer contour
-    contour_image = sitk.GetImageFromArray(contour_image)
+    contour_array = sitk.GetImageFromArray(contour_image)
     insta_image = sitk.ConnectedThreshold(
-        image1=contour_image,
+        image1=contour_array,
         seedList=cam_seed,
         lower=0,
         upper=0.9,
         replaceValue=1
     )
     image_array = sitk.GetArrayFromImage(insta_image)
+
+    # check if hole image is filled --> hole in contour that needs to closed
+    uni_vals, uni_count = np.unique(image_array, return_counts=True)
+    if uni_count[1]/sum(uni_count) > 0.8:
+        logging.info("Hole in Contour detected. Trying to close")
+
+        cam_image = sitk.BinaryDilate(
+           image1=cam_image,
+            backgroundValue=0.0,
+            foregroundValue=1.0,
+            boundaryToForeground=True,
+            kernelRadius=(5,5)
+        )
+        contour_array = sitk.GetArrayFromImage(tmp_image + cam_image)
+        contour_array = np.where(contour_array > 1, 1, contour_array)
+
+        # get outer contour
+        contours, hierarchy = cv2.findContours(image=contour_array, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_SIMPLE)
+
+        # only get the longest contour
+        length = 0
+        for ele in contours:
+            if len(ele) > length:
+                contours = [ele]
+                length = len(ele)
+        contour_image = cv2.drawContours(image=np.zeros(contour_array.shape), contours=contours, contourIdx=0, color=(1, 0, 0), thickness=7, lineType=cv2.LINE_AA)
+        # fill everything inside outer contour
+        contour_array = sitk.GetImageFromArray(contour_image)
+        insta_image = sitk.ConnectedThreshold(
+            image1=contour_array,
+            seedList=cam_seed,
+            lower=0,
+            upper=0.9,
+            replaceValue=1
+        )
+        image_array = sitk.GetArrayFromImage(insta_image)
+
+
 
     fig, axs = plt.subplots()
     axs.set_title("Filled instability")
@@ -927,13 +977,13 @@ def segment_instability(config, case, base_image, file_name, cam_seg):
     if px_val.size == 0:
         return base_image, False
     else:
-        px_val = int(px_val.mean())
+        px_val = int(px_val.mean().round())
     logging.info(f"Insta seed value: {px_val}")
     lower_limit = 1
     if px_val > 230:
         return base_image, False
     else:
-        upper_start = px_val + 5
+        upper_start = px_val + 20
     # initial segmentation
     insta_image = sitk.ConnectedThreshold(
             image1=base_image,
@@ -1102,7 +1152,7 @@ def create_animation(config, case, data_folder):
     if data_folder == "png_cases":
         dat_path = os.path.join(config["raw_data_path"], data_folder, case)
     else:
-        dat_path = os.path.join(config["data_path"], data_folder, case)
+        dat_path = os.path.join(config["results_path"], "final_data", case, data_folder)
     frame = cv2.imread(os.path.join(dat_path, images[0]+ ".png"))
     height, width, layers = frame.shape
     fps = 5
