@@ -23,16 +23,21 @@ def get_image_files(config, case, folder):
     """
     if folder in ["raw_cases", "png_cases"]:
         dir_path = os.path.join(config["raw_data_path"])
+        dat_path = os.path.join(dir_path, folder, case)
+    elif folder in ["contours", "instabilities"]:
+        dir_path = os.path.join(config["results_path"], "final_data")
+        dat_path = os.path.join(dir_path, case, folder)
     else:
         dir_path = os.path.join(config["data_path"])
+        dat_path = os.path.join(dir_path, folder, case)
     if os.path.exists(dir_path) is False:
         logging.error(f"Data directory {dir_path} doesn't exsist. Please check config for valid path.")
         return []
 
-    dat_path = os.path.join(dir_path, folder, case)
     if os.path.exists(dat_path) is False:
         logging.warning(f"No data found for case {case} at {dat_path}")
         return []
+    
     images = glob.glob(os.path.join(dat_path, "*.tiff"))
     if images == []:
         images = glob.glob(os.path.join(dat_path, "*.png"))
@@ -54,6 +59,11 @@ def get_image_files(config, case, folder):
 
     tmp_images = [x.split(".")[0] for x in tmp_images]
     tmp_images.sort()
+    # convert images to png if from .tiff folder
+    if folder == "raw_cases":
+        cpus = os.cpu_count()
+        p = Pool(cpus)
+        p.map(partial(convert2png, config=config, case=case), tmp_images)
     return tmp_images
 
 def get_config():
@@ -64,6 +74,18 @@ def get_config():
     with open(path) as f:
         cfg = json.load(f)
     return cfg
+
+def rename_cases(config):
+    """
+    Function that gets rid of " " in folder names in raw_cases dir
+    """
+    base_path = os.path.join(config["raw_data_path"], "raw_cases")
+    cases = os.listdir(base_path)
+
+    for cas in cases:
+        if " " in cas:
+            new_cas = cas.replace(" ", "_")
+            os.rename(os.path.join(base_path, cas), os.path.join(base_path, new_cas))
 
 def calc_case_ratio():
     """
@@ -88,7 +110,7 @@ def calc_case_ratio():
         if config["debug"]:
             parallel = False
         else:    
-            parallel = False
+            parallel = True
 
         if parallel:
             cpus = os.cpu_count()
@@ -98,13 +120,10 @@ def calc_case_ratio():
             for img in images:
                 status = process_image(img, config, cas)
         
-        # if config["debug"]:
-        #     create_animation(config, cas, "contours")
-        #     create_animation(config, cas, "instabilities")
-        #     create_animation(config, cas, "png_cases")
-
-    
-
+        if config["debug"] is False:
+            create_animation(config, cas, "contours")
+            create_animation(config, cas, "instabilities")
+            create_animation(config, cas, "png_cases")
 
 def create_intermediate_folders(config, cas):
     """
@@ -118,17 +137,30 @@ def create_intermediate_folders(config, cas):
         if os.path.exists(folder_path) is False:
             os.makedirs(folder_path)
 
+    # create folders for results
     final_folders = ["final_data"]
     for fld in final_folders:
         folder_path = os.path.join(config["results_path"], fld, cas)
         if os.path.exists(folder_path) is False:
             os.makedirs(folder_path)
+        folder_path = os.path.join(config["results_path"], fld, cas, "instabilities")
+        if os.path.exists(folder_path) is False:
+            os.makedirs(folder_path)
+        folder_path = os.path.join(config["results_path"], fld, cas, "contours")
+        if os.path.exists(folder_path) is False:
+            os.makedirs(folder_path)
+    
+    # create png_folder if not there
+    png_dir_path = os.path.join(config["raw_data_path"], "png_cases", cas)
+    if os.path.exists(png_dir_path) is False:
+        os.makedirs(png_dir_path)
+        
 
 def get_all_cases(config):
     """
     Function that puts all cases in config
     """
-    path = os.path.join(config["data_path"], "raw_cases")
+    path = os.path.join(config["raw_data_path"], "raw_cases")
     dirs = os.listdir(path)
     config["all_cases"] = dirs
     cfg_path = os.path.join(sys.path[0], "config.json")
@@ -136,7 +168,7 @@ def get_all_cases(config):
         json.dump(config, f, ensure_ascii=False, indent=4)    
 
 
-def convert2png(config, case, file) -> bool:
+def convert2png(file, config, case) -> bool:
     """
     Function that converst .tiff images to .png images and stores them in png_cases folder for a case
     """
@@ -183,14 +215,12 @@ def process_image(img_name, config, cas) -> bool:
     if os.path.exists(res_csv_path) and config["new_files"] is False:
         logging.info(f"Already processed image {img_name} for case {cas}")
         return True
+    logging.info("-----------------------------")
+    logging.info(f"processing image {img_name}")
+    logging.info("-----------------------------")
 
-    status = False
-    status = convert2png(config, cas, img_name)
-    if status:
-        hist_stat = make_histo(config, cas, "png_cases", img_name)
-    else:
-        logging.error(f"Converting image {img_name} to png failed")
-        return status
+    status = True
+    # hist_stat = make_histo(config, cas, "png_cases", img_name)
 
     base_img = get_base_image(config, cas, img_name)
 
@@ -198,30 +228,50 @@ def process_image(img_name, config, cas) -> bool:
     base_array[:,300:304] = 0
     base_img = sitk.GetImageFromArray(base_array)
 
-    cam_img = segment_camera(config, cas, base_img, img_name)
-
+    try:
+        cam_img = segment_camera(config, cas, base_img, img_name)
+    except:
+        logging.error(f"Something went wrong with the camera segmentation for image {img_name}")
+        return False
     # get cam array
     cam_array = sitk.GetArrayFromImage(cam_img)
     # replace all found cam pixel with 0 in base image
     base_array[cam_array == 1] = 0
     base_img = sitk.GetImageFromArray(base_array)
-    insta_img, status = segment_instability(config, cas, base_img, img_name, cam_img)
+
+    try:
+        insta_img, status = segment_instability(config, cas, base_img, img_name, cam_img)
+    except:
+        logging.error(f"Something went wrong with the instability segmentation for image {img_name}")
+        return False
     if status is False:
         logging.error(f"No instability found in {img_name}")
         return status
 
     # hull = convex_hull(config, cas, insta_img, img_name)
-    new_insta_img, status = refine_instability(config, cas, insta_img, img_name)
+    try:
+        new_insta_img, status = refine_instability(config, cas, insta_img, img_name)
+    except:
+        logging.error(f"Something went wrong with the instability refinement for image {img_name}")
+        return False
     if status is False:
         logging.error(f"Instability found in {img_name} is more than one blob")
         return status
     
-    status, final_insta_img = close_instability(config, cas, new_insta_img, img_name, cam_img)
+    try:
+        status, final_insta_img = close_instability(config, cas, new_insta_img, img_name, cam_img)
+    except:
+        logging.error(f"Something went wrong while closing the instability for image {img_name}")
+        return False
     if status is False:
         logging.error(f"Closing instability in {img_name} failed")
         return status
     
-    contours = get_contour(config, cas, final_insta_img, img_name)
+    try:
+        contours = get_contour(config, cas, final_insta_img, img_name)
+    except:
+        logging.error(f"Something went wrong with the contour extraction for image {img_name}")
+        return False
     df = pd.DataFrame(contours)
     con_csv_folder = os.path.join(final_dir_path, "contours")
     if os.path.exists(con_csv_folder) is False:
@@ -240,31 +290,12 @@ def save_image(config, folder, filename, img, case):
     """
     Function that saves images
     """
-    dir_path = os.path.join(config["data_path"], folder, case)
+    dir_path = os.path.join(config["raw_data_path"], folder, case)
     if os.path.exists(dir_path) is False:
         os.makedirs(dir_path)
         logging.info(f"Creating dir {folder} for case {case}")
-    img_path = os.path.join(config["data_path"], folder, case, filename + ".png")
+    img_path = os.path.join(config["raw_data_path"], folder, case, filename + ".png")
     cv2.imwrite(img_path, img)
-
-def crop(file_in, bbox, file_out):
-    from PIL import Image
-    image = Image.open(file_in)
-    crop = image.crop(box=bbox)
-    crop.save(file_out)
-
-def edges(file_in, file_out):
-    from PIL import Image, ImageFilter
-    image = Image.open(file_in)
-    result = image.filter(ImageFilter.FIND_EDGES)
-    result.save(file_out)
-
-def enhance(file_in, factor, file_out):
-    from PIL import Image, ImageEnhance
-    image = Image.open(file_in)
-    enhancer = ImageEnhance.Sharpness(image)
-    result = enhancer.enhance(factor)
-    result.save(file_out)
 
 def get_base_image(config, case, file_name):
     """
@@ -342,12 +373,12 @@ def close_instability(config, case, base_image, file_name, cam_image):
     cX = int(M["m10"] / M["m00"])
     cY = int(M["m01"] / M["m00"])
     cX -= 10
-    logging.info(f"cX: {cY}, cY: {cX}")
+    logging.debug(f"cX: {cY}, cY: {cX}")
 
     contour_image = cv2.drawContours(image=np.zeros(image_array.shape), contours=contours, contourIdx=0, color=(1, 0, 0), thickness=7, lineType=cv2.LINE_AA)
 
     bound_rect = cv2.boundingRect(cont)
-    logging.info(bound_rect)
+    logging.debug(bound_rect)
 
     tl_x = bound_rect[0]
     tl_y = bound_rect[1]
@@ -387,7 +418,7 @@ def close_instability(config, case, base_image, file_name, cam_image):
             plt.close(fig)
 
         counter += 1        
-    logging.info(f"Slope: {m}")
+    logging.debug(f"Slope: {m}")
 
     if abs(m) > 5:
         logging.error(f"Camera segmentation near instability bounding box failed. Skiping {file_name}")
@@ -449,11 +480,11 @@ def close_instability(config, case, base_image, file_name, cam_image):
     tmp_image = sitk.GetImageFromArray(image_array)
     cam_seed = [(cX,cY)]
     px_val = tmp_image.GetPixel(cam_seed[0])
-    logging.info(f"Seed value: {px_val}")
+    logging.debug(f"Seed value: {px_val}")
     if px_val == 1:
         cam_seed = [(cX, int(poly1d_fn(cX)))]
         px_val = tmp_image.GetPixel(cam_seed[0])
-        logging.info(f"New seed value: {px_val}")
+        logging.debug(f"New seed value: {px_val}")
     
 
     fig, axs = plt.subplots()
@@ -642,7 +673,7 @@ def refine_instability(config, case, base_image, file_name):
         return base_image, status
 
     fig, axs = plt.subplots()
-    axs.set_title(f"Instability after Dilate/Erode")
+    axs.set_title("Instability after Dilate/Erode")
     pos = axs.imshow(final_array, cmap="Greys")
     fig.colorbar(pos, ax=axs)
     
@@ -693,7 +724,7 @@ def segment_camera(config, case, base_image, file_name):
     # cam corner seed
     cam_seed = [(10,10)]
     px_val = base_image.GetPixel(cam_seed[0])
-    logging.info(f"Cam seed value: {px_val}")
+    logging.debug(f"Cam seed value: {px_val}")
 
     # check for seed inside camera
     fin_val = 255
@@ -714,7 +745,7 @@ def segment_camera(config, case, base_image, file_name):
     # cam middle seed
     # insta_seed = [(1350,1150)]
     insta_px_val = base_image.GetPixel(insta_seed[0])
-    logging.info(f"Insta seed value: {insta_px_val}")
+    logging.debug(f"Insta seed value: {insta_px_val}")
 
     fig, axs = plt.subplots()
     axs.set_title(f"Base Image {file_name.split('_')[0]}")
@@ -733,7 +764,7 @@ def segment_camera(config, case, base_image, file_name):
             upper=upper_start,
             replaceValue=1
         )
-    logging.info("Initial Camera Segmentation")
+    # logging.info("Initial Camera Segmentation")
     insta_proc_img = sitk.LabelOverlay(base_image, cam_image)
     fig, axs = plt.subplots()
     axs.set_title(f"Initial Cam Seg {int(file_name.split('_')[0])}")
@@ -804,7 +835,7 @@ def segment_camera(config, case, base_image, file_name):
 
         px_count_old = px_count[1]
         if cam_pixels > px_thresh:
-            logging.info(f"Limit: {new_limit} delta = {delta}")
+            logging.debug(f"Limit: {new_limit} delta = {delta}")
             insta_proc_img = sitk.LabelOverlay(base_image, cam_image)
             fig, axs = plt.subplots()
             axs.set_title(f"Cam Image {int(file_name.split('_')[0])} limit {new_limit} tmp_step {tmp_step.round(2)}")
@@ -826,7 +857,7 @@ def segment_camera(config, case, base_image, file_name):
         replaceValue=1
     )
     uni_vals = np.unique(sitk.GetArrayFromImage(cam_image))
-    logging.info(f"Unique values cam {uni_vals}")
+    logging.debug(f"Unique values cam {uni_vals}")
 
     cam_proc_img = sitk.LabelOverlay(base_image, cam_image)
     fig, axs = plt.subplots()
@@ -919,7 +950,7 @@ def segment_instability(config, case, base_image, file_name, cam_seg):
     contours, hierarchy = cv2.findContours(image=cam_array, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_NONE)
     cont = contours[0]
     bound_rect = cv2.boundingRect(cont)
-    logging.info(bound_rect)
+    logging.debug(bound_rect)
 
     tl_x = bound_rect[0]
     tl_y = bound_rect[1]
@@ -958,7 +989,7 @@ def segment_instability(config, case, base_image, file_name, cam_seg):
         seeds.append((ele, tmp_y_up))
         seeds.append((ele, tmp_y_low))
 
-    logging.info(f"Insta Seeds : {seeds}")
+    logging.debug(f"Insta Seeds : {seeds}")
     fig, axs = plt.subplots()
     axs.set_title("Cam position")
     for ele in seeds:
@@ -1070,7 +1101,7 @@ def segment_instability(config, case, base_image, file_name, cam_seg):
 
     if len(uni_vals) > 1 and uni_counts[-1] < 100:
         return base_image, False 
-    logging.info(f"Unique values insta {uni_vals}, {uni_counts}")
+    logging.debug(f"Unique values insta {uni_vals}, {uni_counts}")
 
     insta_proc_img = sitk.LabelOverlay(base_image, insta_image)
     
@@ -1167,5 +1198,8 @@ def create_animation(config, case, data_folder):
 
 if __name__ == "__main__":
     calc_case_ratio()
-    remove_empty_folders(os.path.join(sys.path[0], "data"))
-    remove_empty_folders(os.path.join(sys.path[0], "results"))
+    config = get_config()
+    remove_empty_folders(config["data_path"])
+    remove_empty_folders(config["results_path"])
+    # rename_cases(config)
+    # get_all_cases(config)
