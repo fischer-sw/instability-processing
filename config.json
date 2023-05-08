@@ -7,7 +7,7 @@
     "new_files": false,
     "debug": false,
     "hpc_job_conf": {
-        "wall_time": "01:00:00",
+        "wall_time": "00:30:00",
         "cpus": 8
     },
     "images": [],
@@ -22,10 +22,10 @@
         123,
         327
     ],
-    "cases": [
+    "all_cases": [
         "0.5mmspacer1ml"
     ],
-    "all_cases": [
+    "cases": [
         "0.6mmspacer0.8mlflow_3",
         "0.5mmspacer1ml2",
         "c14tab_1,5ml_0,6mm_spacer_2",

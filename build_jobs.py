@@ -43,8 +43,12 @@ def build_job(config, case):
         json.dump(config, f, ensure_ascii=False, indent=4)  
 
     # copy methods.py and requirements.txt to job dir
-    shutil.copy(os.path.join(sys.path[0], "methods.py"), job_dir_path)
-    shutil.copy(os.path.join(sys.path[0], "requirements.txt"), job_dir_path)
+    files = ["methods.py", "requirements.txt"]
+    for file in files:
+        tmp_file_path = os.path.join(job_dir_path, file)
+        if os.path.exists(tmp_file_path):
+            os.remove(tmp_file_path)
+        shutil.copy(os.path.join(sys.path[0], file), job_dir_path)
 
     # read job template
     template_path = os.path.join(sys.path[0], "job_template.sh")

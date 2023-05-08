@@ -121,6 +121,7 @@ def calc_case_ratio():
                 status = process_image(img, config, cas)
         
         if config["debug"] is False:
+            logging.info(f"Starting to create animations for case {cas}")
             create_animation(config, cas, "contours")
             create_animation(config, cas, "instabilities")
             create_animation(config, cas, "png_cases")
@@ -229,6 +230,7 @@ def process_image(img_name, config, cas) -> bool:
     base_img = sitk.GetImageFromArray(base_array)
 
     try:
+        logging.info(f"Starting camera segmentation for image {img_name}")
         cam_img = segment_camera(config, cas, base_img, img_name)
     except:
         logging.error(f"Something went wrong with the camera segmentation for image {img_name}")
@@ -240,6 +242,7 @@ def process_image(img_name, config, cas) -> bool:
     base_img = sitk.GetImageFromArray(base_array)
 
     try:
+        logging.info(f"Starting insta segmentation for image {img_name}")
         insta_img, status = segment_instability(config, cas, base_img, img_name, cam_img)
     except:
         logging.error(f"Something went wrong with the instability segmentation for image {img_name}")
@@ -250,6 +253,7 @@ def process_image(img_name, config, cas) -> bool:
 
     # hull = convex_hull(config, cas, insta_img, img_name)
     try:
+        logging.info(f"Starting insta refining for image {img_name}")
         new_insta_img, status = refine_instability(config, cas, insta_img, img_name)
     except:
         logging.error(f"Something went wrong with the instability refinement for image {img_name}")
@@ -259,6 +263,7 @@ def process_image(img_name, config, cas) -> bool:
         return status
     
     try:
+        logging.info(f"Starting to close insta for image {img_name}")
         status, final_insta_img = close_instability(config, cas, new_insta_img, img_name, cam_img)
     except:
         logging.error(f"Something went wrong while closing the instability for image {img_name}")
@@ -268,6 +273,7 @@ def process_image(img_name, config, cas) -> bool:
         return status
     
     try:
+        logging.info(f"Getting contour for image {img_name}")
         contours = get_contour(config, cas, final_insta_img, img_name)
     except:
         logging.error(f"Something went wrong with the contour extraction for image {img_name}")
@@ -660,7 +666,7 @@ def refine_instability(config, case, base_image, file_name):
             tmp_array[tl_y:tl_y+height,tl_x:tl_x+width] = 0
                  
     final_array = tmp_array
-    logging.info(f"Contours_n: {len(contours)}")
+    logging.debug(f"Contours_n: {len(contours)}")
     if len(contours) != 1:
         contour_image = cv2.drawContours(image=np.zeros(final_array.shape), contours=contours, contourIdx=-1, color=(1, 0, 0), thickness=7, lineType=cv2.LINE_AA)
         fig, axs = plt.subplots()
@@ -1009,7 +1015,7 @@ def segment_instability(config, case, base_image, file_name, cam_seg):
         return base_image, False
     else:
         px_val = int(px_val.mean().round())
-    logging.info(f"Insta seed value: {px_val}")
+    logging.debug(f"Insta seed value: {px_val}")
     lower_limit = 1
     if px_val > 230:
         return base_image, False
@@ -1067,7 +1073,7 @@ def segment_instability(config, case, base_image, file_name, cam_seg):
         delta_data["deltas"].append(delta)
         px_count_old = px_count[1]
         if tmp_step > step_thresh and (lr_cor_val == 1 or ur_cor_val == 1):
-            logging.info(f"Limit: {new_limit} delta = {delta}")
+            logging.debug(f"Limit: {new_limit} delta = {delta}")
             insta_proc_img = sitk.LabelOverlay(base_image, insta_image)
             fig, axs = plt.subplots()
             axs.set_title(f"Insta Image {int(file_name.split('_')[0])} limit {new_limit} last_delta {delta.round(2)}")
@@ -1198,8 +1204,8 @@ def create_animation(config, case, data_folder):
 
 if __name__ == "__main__":
     calc_case_ratio()
-    config = get_config()
-    remove_empty_folders(config["data_path"])
-    remove_empty_folders(config["results_path"])
+    # config = get_config()
+    # remove_empty_folders(config["data_path"])
+    # remove_empty_folders(config["results_path"])
     # rename_cases(config)
     # get_all_cases(config)
