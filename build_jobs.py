@@ -18,6 +18,7 @@ def build_job(config, case):
     logging.info(f"Preparing hpc_job for case {case}")
     # adapt config to run on hpc
     tmp_config = config.copy()
+    tmp_config["hpc"] = True
     tmp_config["cases"] = [cas]
     tmp_config["images"] = []
     tmp_config["debug"] = False
@@ -85,9 +86,9 @@ if __name__ == "__main__":
         build_job(config, cas)
 
 
-    res_path = "/".join(["","bigdata", "FWDT", "DFischer"]+ config["results_path"].split("\\")[6:])
-    dat_path = "/".join(["","bigdata", "FWDT", "DFischer"]+ config["data_path"].split("\\")[6:])
-    raw_path = "/".join(["","bigdata", "FWDT", "DFischer"]+ config["raw_data_path"].split("\\")[6:])
+    config["results_path"] = "/".join(["","bigdata", "FWDT", "DFischer"]+ config["results_path"].split("\\")[6:])
+    config["data_path"] = "/".join(["","bigdata", "FWDT", "DFischer"]+ config["data_path"].split("\\")[6:])
+    config["raw_data_path"] = "/".join(["","bigdata", "FWDT", "DFischer"]+ config["raw_data_path"].split("\\")[6:])
     
 
     run_path = os.path.join(sys.path[0], "run.sh")
@@ -114,8 +115,9 @@ if __name__ == "__main__":
     
     # write job.sh to target location
     template_target = os.path.join(job_base_path, "run.sh")
-    with open(template_target, "w") as f:
-        f.writelines(tmp_template)
+    if os.path.exists(template_target) is False:
+        with open(template_target, "w") as f:
+            f.writelines(tmp_template)
 
     # copy stat.sh
     if os.path.exists(os.path.join(config["hpc_job_dir"], "stat.sh")) is False:

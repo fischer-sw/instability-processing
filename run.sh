@@ -5,27 +5,34 @@ RAW_DIR=%raw_data_path%
 
 function do_job {
     cd $1
-    
-	FILES=$(ls $RES_DIR/$d/instabilities | wc -l)
+	echo do_job - JOB = $1
+	PATH=$RES_DIR/final_data/$1/instabilities
+
+	if test -f $PATH; then
+		FILES=$(ls $PATH | wc -l)
+	else
+		FILES=0
+	fi
 	if [ $FILES == 0 ]; then
 
+		echo Checking if Job $1 is already started ...
+		echo All Jobs = $(qstat -u $USER | wc -l)
 		N_JOB_ID=$(qstat -u $USER | grep $1 | wc -l)
-		
-		if [ $N_JOB_ID == 0 ]; then
+		echo Found $N_JOB_ID Jobs matching $1
+		if [[ $N_JOB_ID == 0 ]]; then
+			echo starting to run job $1 ...
 			dos2unix job.sh
 			JOB_ID=$(sbatch --parsable job.sh)
-				NAME=$(grep "^#SBATCH -J" ./job.sh | cut -d" "  -f3)
-			echo Name = ${NAME}
-			echo SIM JOB_ID ${JOB_ID}
+			echo Job $1 submitted
+			NAME=$(grep "^#SBATCH -J" ./job.sh | cut -d" "  -f3)
+			echo Job Name = ${NAME}
+			echo JOB_ID ${JOB_ID}
 		else
 			echo Job already running or in queue
 		fi
 		
 	else
-		echo "Already calculated data for case $1"
-		#dos2unix post.sh
-		#echo "Starting post processing"
-		#sbatch post.sh
+		echo "Already calculated data for case $TMP_DIR"
 	fi
     cd -
 }
@@ -46,7 +53,7 @@ while [ -n "$1" ]; do # while loop starts
 	-prep) do_prep_all ;;
 	-j) do_job $2 ;;
 	-a) do_run_all ;;
-	*) echo "Option $1 not recognized. -prep, -c, -a and -p are allowed." ;; # In case you typed a different option other than a,b,c
+	*) echo "Option $1 not recognized. -prep, -j, and -a are allowed." ;; # In case you typed a different option other than a,b,c
 	esac
 	shift
 done
@@ -58,54 +65,32 @@ function do_prep_all {
 	echo "Preparing all cases ..."
         cd ~/insta_hpc
         JOBS=$(find . -nowarn -type d -maxdepth 1 -mindepth 1)
-		echo JOBS =  $JOBS
         for d in $JOBS
     	do
-			dos2unix ~/insta_hpc/$d/job.sh
+			TMP_DIR=$(cut -d '/' -f2 <<< $d)
+			dos2unix ~/insta_hpc/$TMP_DIR/job.sh
     	done
         echo "Preparation finished"
 
-}
-
-
-function do_clean {
-	echo "Cleaning cases ..."
-	cd ~/Jobs
-	JOBS=$(find . -nowarn -type d -maxdepth 1 -mindepth 1)
-	for d in $JOBS
-    	do
-		cd ~/Jobs/$d
-		FILES=$(ls | wc -l)	
-		if [ $FILES == 0 ]; then
-			rmdir ~/Jobs/$d
-		else
-			DATAFILES=$(ls ./Data | wc -l)
-			GZ=$(ls | grep .gz | wc -l)
-			if [ $DATAFILES == 0 ] || [ $GZ == 0 ]; then
-				echo Removing $d
-				rm -r ~/Jobs/$d/*
-				rmdir ~/Jobs/$d
-				echo Finished removing $d
-			fi
-		fi
-		
-		done
-	echo "Cleaning finished"
 }
 
 function do_run_all {
 
 	JOBS=$(find . -nowarn -type d -maxdepth 1 -mindepth 1)
 	for d in $JOBS
-    do	
-		if [ -d "$DIR" ]; then
-			FILES=$(ls $RES_DIR/final_data/$d/instabilities | wc -l)
+    do
+		TMP_DIR=$(cut -d '/' -f2 <<< $d)
+		PATH=$RES_DIR/final_data/$TMP_DIR/instabilities
+		if test -f $PATH; then
+			FILES=$(ls $PATH | wc -l)
 		else
 			FILES=0
 		fi
-		# echo $d $FILES
+		
 		if [ $FILES == 0 ]; then
-			do_job $d
+			do_job $TMP_DIR
+		else
+			echo case $TMP_DIR already processed.
 		fi
     done
 	qstat -u ${USER}

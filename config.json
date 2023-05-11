@@ -1,4 +1,5 @@
 {
+    "hpc" : false,
     "hpc_job_dir": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\image_proc\\hpc_jobs",
     "data_path": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\image_proc\\tmp_data",
     "raw_data_path": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\image_proc\\raw_data",
@@ -7,8 +8,8 @@
     "new_files": false,
     "debug": false,
     "hpc_job_conf": {
-        "wall_time": "00:30:00",
-        "cpus": 8
+        "wall_time": "01:20:00",
+        "cpus": 4
     },
     "images": [],
     "test_images": [
@@ -23,8 +24,7 @@
         327
     ],
     "cases": [
-        "0.5mmspacer0.5ml",
-        "0.75mmspacer0.08flow"
+        "0,5mmspacer0.1ml2"
     ],
     "all_cases": [
         "0.6mmspacer0.8mlflow_3",

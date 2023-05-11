@@ -109,8 +109,11 @@ def calc_case_ratio():
 
         if config["debug"]:
             parallel = False
-        else:    
-            parallel = True
+        else:
+            if config["hpc"]:
+                parallel = False
+            else:
+                parallel = True
 
         if parallel:
             cpus = os.cpu_count()
