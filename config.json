@@ -22,10 +22,11 @@
         123,
         327
     ],
-    "all_cases": [
-        "0.5mmspacer1ml"
-    ],
     "cases": [
+        "0.5mmspacer0.5ml",
+        "0.75mmspacer0.08flow"
+    ],
+    "all_cases": [
         "0.6mmspacer0.8mlflow_3",
         "0.5mmspacer1ml2",
         "c14tab_1,5ml_0,6mm_spacer_2",

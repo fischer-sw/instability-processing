@@ -17,16 +17,17 @@ def build_job(config, case):
 
     logging.info(f"Preparing hpc_job for case {case}")
     # adapt config to run on hpc
-    config["cases"] = [cas]
-    config["images"] = []
-    config["debug"] = False
-    config["new_files"] = False
-    config["save_intermediate"] = True
+    tmp_config = config.copy()
+    tmp_config["cases"] = [cas]
+    tmp_config["images"] = []
+    tmp_config["debug"] = False
+    tmp_config["new_files"] = False
+    tmp_config["save_intermediate"] = True
 
-    config["results_path"] = "/".join(["","bigdata", "FWDT", "DFischer"]+ config["results_path"].split("\\")[6:])
-    config["data_path"] = "/".join(["","bigdata", "FWDT", "DFischer"]+ config["data_path"].split("\\")[6:])
-    config["raw_data_path"] = "/".join(["","bigdata", "FWDT", "DFischer"]+ config["raw_data_path"].split("\\")[6:])
-    config["hpc_job_conf"]["job_name"] = cas
+    tmp_config["results_path"] = "/".join(["","bigdata", "FWDT", "DFischer"]+ tmp_config["results_path"].split("\\")[6:])
+    tmp_config["data_path"] = "/".join(["","bigdata", "FWDT", "DFischer"]+ tmp_config["data_path"].split("\\")[6:])
+    tmp_config["raw_data_path"] = "/".join(["","bigdata", "FWDT", "DFischer"]+ tmp_config["raw_data_path"].split("\\")[6:])
+    tmp_config["hpc_job_conf"]["job_name"] = cas
 
     # create job dir of not already there
     job_base_path = os.path.join(config["hpc_job_dir"])
@@ -40,7 +41,7 @@ def build_job(config, case):
     # writing config file to job directory
     cfg_path = os.path.join(job_dir_path, "config.json")
     with open(cfg_path, "w", encoding="utf-8") as f:
-        json.dump(config, f, ensure_ascii=False, indent=4)  
+        json.dump(tmp_config, f, ensure_ascii=False, indent=4)  
 
     # copy methods.py and requirements.txt to job dir
     files = ["methods.py", "requirements.txt"]
