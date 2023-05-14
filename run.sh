@@ -4,37 +4,36 @@ RES_DIR=%results_path%
 RAW_DIR=%raw_data_path%
 
 function do_job {
-    cd $1
-	echo do_job - JOB = $1
-	PATH=$RES_DIR/final_data/$1/instabilities
-
-	if test -f $PATH; then
-		FILES=$(ls $PATH | wc -l)
+    cd "$1"
+	
+	local TMP_PATH="$RES_DIR/final_data/$1/instabilities"
+	if [ -d "$TMP_PATH" ]; then
+		FILES=$(ls "$TMP_PATH" | wc -l)
 	else
 		FILES=0
 	fi
+	FILES=0
 	if [ $FILES == 0 ]; then
 
-		echo Checking if Job $1 is already started ...
-		echo All Jobs = $(qstat -u $USER | wc -l)
-		N_JOB_ID=$(qstat -u $USER | grep $1 | wc -l)
-		echo Found $N_JOB_ID Jobs matching $1
+		echo "Checking if Job $1 is already started ..."
+		N_JOB_ID=$(qstat -u $USER | grep "$1" | wc -l)
+		echo Found $N_JOB_ID Jobs matching "$1"
 		if [[ $N_JOB_ID == 0 ]]; then
-			echo starting to run job $1 ...
+			echo "starting to run job $1 ..."
 			dos2unix job.sh
 			JOB_ID=$(sbatch --parsable job.sh)
-			echo Job $1 submitted
+			echo "Job $1 submitted"
 			NAME=$(grep "^#SBATCH -J" ./job.sh | cut -d" "  -f3)
 			echo Job Name = ${NAME}
 			echo JOB_ID ${JOB_ID}
 		else
-			echo Job already running or in queue
+			echo Job "$1" already running or in queue
 		fi
 		
 	else
 		echo "Already calculated data for case $TMP_DIR"
 	fi
-    cd -
+    cd ~/insta_hpc/
 }
 
 function get_job_id {
@@ -80,17 +79,20 @@ function do_run_all {
 	for d in $JOBS
     do
 		TMP_DIR=$(cut -d '/' -f2 <<< $d)
-		PATH=$RES_DIR/final_data/$TMP_DIR/instabilities
-		if test -f $PATH; then
-			FILES=$(ls $PATH | wc -l)
+		TMP_PATH="$RES_DIR/final_data/$TMP_DIR/instabilities"
+		if [ -d $TMP_PATH ]; then
+			FILES=$(ls "$TMP_PATH" | wc -l)
 		else
 			FILES=0
-		fi
-		
+		fi 
+		echo "--------------------"
+		echo "Starting job processing $d"
+		echo "--------------------"
+
 		if [ $FILES == 0 ]; then
 			do_job $TMP_DIR
 		else
-			echo case $TMP_DIR already processed.
+			echo case $d already processed.
 		fi
     done
 	qstat -u ${USER}
