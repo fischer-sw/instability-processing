@@ -96,9 +96,20 @@ def calc_case_ratio():
         #create all intermediate folders
         create_intermediate_folders(config, cas)
 
-        images = get_image_files(config, cas, "raw_cases")
+        tmp_conf = config.copy()
+        tmp_conf["images"] = []
+        background_images = get_image_files(tmp_conf, cas, "png_cases")
+        if background_images == []:
+            background_images = get_image_files(tmp_conf, cas, "raw_cases")
+        if background_images == []:
+            logging.warning(f"No images found for case {cas}")
+            continue
+
+        background_img = get_base_image(config, cas, background_images[0])
+
+        images = get_image_files(config, cas, "png_cases")
         if images == []:
-            images = get_image_files(config, cas, "png_cases")
+            images = get_image_files(config, cas, "raw_cases")
         if images == []:
             logging.warning(f"No images found for case {cas}")
             continue
@@ -118,10 +129,10 @@ def calc_case_ratio():
         if parallel:
             cpus = os.cpu_count()
             p = Pool(cpus)
-            p.map(partial(process_image, config=config, cas=cas), images)
+            p.map(partial(process_image, config=config, cas=cas, background=background_img), images)
         else:
             for img in images:
-                status = process_image(img, config, cas)
+                status = process_image(img, config, cas, background=background_img)
         
         if config["debug"] is False:
             logging.info(f"Starting to create animations for case {cas}")
@@ -205,7 +216,7 @@ def read_image(config, folder, filename, case):
 
     return img
 
-def process_image(img_name, config, cas) -> bool:
+def process_image(img_name, config, cas, background) -> bool:
     """
     Function that processes an image
     """
@@ -228,7 +239,15 @@ def process_image(img_name, config, cas) -> bool:
 
     base_img = get_base_image(config, cas, img_name)
 
+    background_array = sitk.GetArrayFromImage(background)
+
     base_array = sitk.GetArrayFromImage(base_img)
+
+    # trying background substraction
+    # base_array = base_array - background_array
+    # base_array = background_array - base_array
+    
+
     base_array[:,300:304] = 0
     base_img = sitk.GetImageFromArray(base_array)
 
@@ -1207,8 +1226,8 @@ def create_animation(config, case, data_folder):
 
 if __name__ == "__main__":
     calc_case_ratio()
-    # config = get_config()
+    config = get_config()
     # remove_empty_folders(config["data_path"])
     # remove_empty_folders(config["results_path"])
-    # rename_cases(config)
     # get_all_cases(config)
+    # rename_cases(config)
