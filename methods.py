@@ -205,7 +205,10 @@ def read_image(config, folder, filename, case):
     """
     Function that reads an image from directory
     """
-    dir_path = os.path.join(config["raw_data_path"], folder, case)
+    if folder in ["png_cases", "raw_cases"]:
+        dir_path = os.path.join(config["raw_data_path"], folder, case)
+    else:
+        dir_path = os.path.join(config["data_path"], folder, case)
     img_path = os.path.join(dir_path, filename + ".png")
     if os.path.exists(img_path):
         img = cv2.imread(img_path)

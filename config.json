@@ -5,7 +5,7 @@
     "raw_data_path": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\image_proc\\raw_data",
     "results_path": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\image_proc\\results",
     "save_intermediate": true,
-    "new_files": true,
+    "new_files": false,
     "debug": false,
     "hpc_job_conf": {
         "wall_time": "01:20:00",

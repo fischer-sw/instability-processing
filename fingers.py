@@ -51,15 +51,15 @@ def proc_cases(config):
             "ratio" : []
         }
         
-        if config["debug"]:
-            parallel = False
-        else:
+        if config["debug"] is False and len(config["images"]) == 0:
             parallel = True
-
+        else:
+            parallel = False
+            
         if len(config["images"]) == 0:
             config["debug"] = False
-        else:
-            config["debug"] = True
+        # else:
+        #     config["debug"] = True
 
         if parallel:
             cpus = os.cpu_count()
@@ -73,20 +73,22 @@ def proc_cases(config):
                 name, ratio = get_fingers(img, config, cas, background_img=background_img)
                 res["image"].append(int(name.split('_')[0]))
                 res["ratio"].append(ratio)
-            
-        fig, axs = plt.subplots()
-        axs.set_title("Finger ratio")
-        axs.plot(res["image"], res["ratio"])
-        fig_path = os.path.join(config["results_path"], "finger_data", cas, "plots", "ratio.png")
-        plt.savefig(fig_path)
-        logging.info(f"Saved ratio fig at {fig_path}")
-        plt.show()
+        
+        if len(res["ratio"]) > 4:
+            fig, axs = plt.subplots()
+            axs.set_title(f"Finger ratio {cas}")
+            axs.plot(res["image"], res["ratio"])
+            axs.set_ylim(0,1)
+            fig_path = os.path.join(config["results_path"], "finger_data", cas, "plots", "ratio.png")
+            plt.savefig(fig_path)
+            logging.info(f"Saved ratio fig at {fig_path}")
+            plt.show()
 
-        if len(config["images"]) == 0:
-            csv_path = os.path.join(config["results_path"], "finger_data", cas, "ratio", "ratio.csv")
-            df = pd.DataFrame(res)
-            df.to_csv(csv_path, index=False)
-            logging.info(f"Saved ratio data at {csv_path}")
+            if len(config["images"]) == 0:
+                csv_path = os.path.join(config["results_path"], "finger_data", cas, "ratio", "ratio.csv")
+                df = pd.DataFrame(res)
+                df.to_csv(csv_path, index=False)
+                logging.info(f"Saved ratio data at {csv_path}")
 
 
 
@@ -94,6 +96,7 @@ def save_intermediate(config, case, img_name, array, folder):
     """
     Function that saves intermediate to folder
     """
+    logging.info(f"Saved {img_name} at {folder}")
     im_path = os.path.join(config["data_path"], folder, case, img_name + ".png")
     plt.imsave(im_path, array, cmap="Greys", dpi=1200)
 
@@ -105,10 +108,15 @@ def substract_background(config, case, img_name, background_img) -> sitk.Image:
     img_path = os.path.join(config["data_path"], "background_substracted", case, img_name + ".png")
     if os.path.exists(img_path) and config["new_files"] is False:
         logging.info(f"Already did background substraction for image {img_name}")
-        reader = sitk.ImageFileReader()
-        reader.SetImageIO("PNGImageIO")
-        reader.SetFileName(img_path)
-        image = reader.Execute()
+        image = read_image(config, "background_substracted", img_name, case)
+        image = sitk.GetImageFromArray(cv2.bitwise_not(image))
+        fig, axs = plt.subplots()
+        axs.set_title(f"Background substracted {img_name.split('_')[0]}")
+        axs.imshow(sitk.GetArrayFromImage(image), cmap="Greys")
+        if config["debug"] is False:
+            plt.close(fig)
+        else:
+            plt.show()
         return image
 
     # get background image array
@@ -153,13 +161,17 @@ def create_intermediate_finger_folders(config, cas):
     """
     Function that creates all intermediate folders
     """
+    # create intermediate folders
     folders = ["background_substracted", "finger_image", "int_window", "cleaned_artifacts", "closed_fingers"]
-
     for fld in folders:
-
         folder_path = os.path.join(config["data_path"], fld, cas)
         if os.path.exists(folder_path) is False:
             os.makedirs(folder_path)
+
+    # create raw_data folder
+    folder_path = os.path.join(config["raw_data_path"], "png_cases", cas)
+    if os.path.exists(folder_path) is False:
+        os.makedirs(folder_path)
 
     # create folders for results
     final_folders = ["finger_data"]
@@ -182,10 +194,15 @@ def int_window(config, case, img_name, base_image):
     img_path = os.path.join(config["data_path"], "int_window", case, img_name + ".png")
     if os.path.exists(img_path) and config["new_files"] is False:
         logging.info(f"Already did intensity window for image {img_name}")
-        reader = sitk.ImageFileReader()
-        reader.SetImageIO("PNGImageIO")
-        reader.SetFileName(img_path)
-        image = reader.Execute()
+        image = read_image(config, "int_window", img_name, case)
+        image = sitk.GetImageFromArray(cv2.bitwise_not(image))
+        fig, axs = plt.subplots()
+        axs.set_title(f"Intensity window {img_name.split('_')[0]}")
+        axs.imshow(sitk.GetArrayViewFromImage(image), cmap="Greys")
+        if config["debug"] is False:
+            plt.close(fig)
+        else:
+            plt.show()
         return image
 
     lower_threshold = 70
@@ -231,10 +248,16 @@ def clean_artifacts(config, case, img_name, base_image) -> sitk.Image:
     img_path = os.path.join(config["data_path"], "cleaned_artifacts", case, img_name + ".png")
     if os.path.exists(img_path) and config["new_files"] is False:
         logging.info(f"Already clean artifacts for image {img_name}")
-        reader = sitk.ImageFileReader()
-        reader.SetImageIO("PNGImageIO")
-        reader.SetFileName(img_path)
-        image = reader.Execute()
+        image = read_image(config, "cleaned_artifacts", img_name, case)
+        image = sitk.GetImageFromArray(cv2.bitwise_not(image))
+
+        fig, axs = plt.subplots()
+        axs.set_title(f"Cleaned artifacts {img_name.split('_')[0]}")
+        axs.imshow(sitk.GetArrayViewFromImage(image), cmap="Greys")
+        if config["debug"] is False:
+            plt.close(fig)
+        else:
+            plt.show()
         return image
 
     px_len = 5
@@ -279,10 +302,15 @@ def close_finger(config, case, img_name, base_img) -> sitk.Image:
     img_path = os.path.join(config["data_path"], "closed_fingers", case, img_name + ".png")
     if os.path.exists(img_path) and config["new_files"] is False:
         logging.info(f"Already closed fingers for image {img_name}")
-        reader = sitk.ImageFileReader()
-        reader.SetImageIO("PNGImageIO")
-        reader.SetFileName(img_path)
-        image = reader.Execute()
+        image = read_image(config, "closed_fingers", img_name, case)
+        image = sitk.GetImageFromArray(cv2.bitwise_not(image))
+        fig, axs = plt.subplots()
+        axs.set_title(f"Finger closed {img_name.split('_')[0]}")
+        axs.imshow(sitk.GetArrayViewFromImage(image), cmap="Greys")
+        if config["debug"] is False:
+            plt.close(fig)
+        else:
+            plt.show()
         return image
     
 
@@ -322,6 +350,14 @@ def diff_image(config, case, img_name, cleaned_image, closed_fingers, base_image
     """
 
     calc_img = closed_fingers - cleaned_image
+
+    # clos_arr = sitk.GetArrayFromImage(closed_fingers)
+    # clos_arr[np.where(clos_arr == 255)] = 1
+
+    # clean_arr = sitk.GetArrayFromImage(cleaned_image)
+    # clean_arr[np.where(clean_arr == 255)] = 1
+
+    # calc_img = sitk.GetImageFromArray(clos_arr - clean_arr)
 
     # diff_img = sitk.LabelOverlay(base_image, calc_img)
     diff_img = calc_img
