@@ -56,6 +56,11 @@ def proc_cases(config):
         else:
             parallel = True
 
+        if len(config["images"]) == 0:
+            config["debug"] = False
+        else:
+            config["debug"] = True
+
         if parallel:
             cpus = os.cpu_count()
             p = Pool(cpus)
