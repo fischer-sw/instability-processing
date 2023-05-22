@@ -15,8 +15,24 @@
         
     ],
     "cases": [
-        "0.1mmspacer_0.015ml_2"
+        "0.6mm2lflow2"
     ],
+
+    "limits" : {
+        "0.1mmspacer_0.015ml_2" : {
+            "low" : 70,
+            "high" : 250 
+        },
+        "0,1spacer0.005ml" : {
+            "low" : 50,
+            "high" : 240 
+        },
+        "0.6mm2lflow2" : {
+            "low" : 30,
+            "high" : 90 
+        }
+    },
+
     "all_cases": [
         "0.6mmspacer0.8mlflow_3",
         "0.5mmspacer1ml2",

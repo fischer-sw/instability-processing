@@ -59,11 +59,13 @@ def get_image_files(config, case, folder):
 
     tmp_images = [x.split(".")[0] for x in tmp_images]
     tmp_images.sort()
+    images = [x.split(".")[0] for x in images]
+    images.sort()
     # convert images to png if from .tiff folder
     if folder == "raw_cases":
         cpus = os.cpu_count()
         p = Pool(cpus)
-        p.map(partial(convert2png, config=config, case=case), tmp_images)
+        p.map(partial(convert2png, config=config, case=case), images)
     return tmp_images
 
 def get_config():

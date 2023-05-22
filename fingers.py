@@ -1,5 +1,5 @@
 import os
-import sys
+import shutil
 import json
 import glob
 import logging
@@ -204,9 +204,13 @@ def int_window(config, case, img_name, base_image):
         else:
             plt.show()
         return image
-
-    lower_threshold = 70
-    upper_threshold = 250
+    
+    if case in list(config["limits"].keys()):
+        lower_threshold = config["limits"][case]["low"]
+        upper_threshold = config["limits"][case]["high"]
+    else:
+        lower_threshold = 70
+        upper_threshold = 250
 
     # Create a binary threshold filter
     threshold_filter = sitk.ThresholdImageFilter()
@@ -239,6 +243,28 @@ def int_window(config, case, img_name, base_image):
     save_intermediate(config, case, img_name, sitk.GetArrayFromImage(output_image), "int_window")
 
     return output_image
+
+def reset_cases(config):
+    """
+    Function that resets case while deleting all images within tmp_data and png_cases folder
+    """
+    for cas in config["cases"]:
+        logging.info("----------------------")
+        logging.info(f"Start cleaning case {cas}")
+        logging.info("----------------------")
+
+        raw_path = os.path.dirname(os.path.join(config["data_path"]))
+        folders = glob.glob("*" + os.sep + "*"+ os.sep + cas, root_dir=raw_path)
+        for fld_path in folders:
+            # dont remove raw data
+            if "raw_cases" in fld_path or "png_cases" in fld_path:
+                continue
+            else:
+                # only remove calculated data
+                shutil.rmtree(os.path.join(raw_path, fld_path))
+                logging.info(f"Removed {fld_path} for case {cas}")
+    logging.info("Cleaning cases finished")
+    
 
 def clean_artifacts(config, case, img_name, base_image) -> sitk.Image:
     """
@@ -408,3 +434,4 @@ def get_fingers(img_name, config, case, background_img) -> float:
 if __name__ == "__main__":
     config = get_config()
     proc_cases(config)
+    # reset_cases(config)
