@@ -45,7 +45,7 @@ def build_job(config, case):
         json.dump(tmp_config, f, ensure_ascii=False, indent=4)  
 
     # copy methods.py and requirements.txt to job dir
-    files = ["methods.py", "requirements.txt"]
+    files = ["methods.py", "requirements.txt", "fingers.py"]
     for file in files:
         tmp_file_path = os.path.join(job_dir_path, file)
         if os.path.exists(tmp_file_path):
@@ -91,15 +91,40 @@ if __name__ == "__main__":
     config["raw_data_path"] = "/".join(["","bigdata", "FWDT", "DFischer"]+ config["raw_data_path"].split("\\")[6:])
     
 
-    run_path = os.path.join(sys.path[0], "run.sh")
+    run_methods_path = os.path.join(sys.path[0], "run_methods.sh")
+    run_fingers_path = os.path.join(sys.path[0], "run_fingers.sh")
+
     job_base_path = os.path.join(config["hpc_job_dir"])
 
-    with open(run_path) as f:
-        run_template = f.readlines()
+    with open(run_methods_path) as f:
+        run_methods = f.readlines()
+
+    with open(run_methods_path) as f:
+        run_fingers = f.readlines()
 
     # build job.sh from template
     tmp_template = []
-    for line in run_template:
+    for line in run_methods:
+        m = re.findall(r'\%(.*?)\%', line)
+        if m != []:
+            for ele in m:
+            
+                if ele in config.keys():
+                    line = line.replace(f"%{ele}%", str(config[ele]))
+                    logging.debug(f"line = {line}")
+                else:
+                    logging.error(f"Element {ele} not defined in cases.json.")
+                    exit()
+        
+        tmp_template.append(line)
+
+    template_target = os.path.join(job_base_path, "run_methods.sh")
+    if os.path.exists(template_target) is False:
+        with open(template_target, "w") as f:
+            f.writelines(tmp_template)
+
+    tmp_template = []
+    for line in run_fingers:
         m = re.findall(r'\%(.*?)\%', line)
         if m != []:
             for ele in m:
@@ -114,7 +139,7 @@ if __name__ == "__main__":
         tmp_template.append(line)
     
     # write job.sh to target location
-    template_target = os.path.join(job_base_path, "run.sh")
+    template_target = os.path.join(job_base_path, "run_fingers.sh")
     if os.path.exists(template_target) is False:
         with open(template_target, "w") as f:
             f.writelines(tmp_template)

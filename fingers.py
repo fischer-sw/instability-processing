@@ -18,7 +18,9 @@ import SimpleITK as sitk
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s")
 
 
-def proc_cases(config):
+def proc_cases():
+
+    config = get_config()
 
     for cas in list(config["cases"]):
 
@@ -52,7 +54,7 @@ def proc_cases(config):
         }
         
         if config["debug"] is False and len(config["images"]) == 0:
-            parallel = True
+            parallel = False
         else:
             parallel = False
             
@@ -82,7 +84,10 @@ def proc_cases(config):
             fig_path = os.path.join(config["results_path"], "finger_data", cas, "plots", "ratio.png")
             plt.savefig(fig_path)
             logging.info(f"Saved ratio fig at {fig_path}")
-            plt.show()
+            if config["debug"] is False:
+                plt.close(fig)
+            else:
+                plt.show()
 
             if len(config["images"]) == 0:
                 csv_path = os.path.join(config["results_path"], "finger_data", cas, "ratio", "ratio.csv")
@@ -97,7 +102,7 @@ def save_intermediate(config, case, img_name, array, folder):
     Function that saves intermediate to folder
     """
     logging.info(f"Saved {img_name} at {folder}")
-    im_path = os.path.join(config["data_path"], folder, case, img_name + ".png")
+    im_path = os.path.join(config["data_path"], case, folder, img_name + ".png")
     plt.imsave(im_path, array, cmap="Greys", dpi=1200)
 
 
@@ -113,6 +118,8 @@ def substract_background(config, case, img_name, background_img) -> sitk.Image:
         fig, axs = plt.subplots()
         axs.set_title(f"Background substracted {img_name.split('_')[0]}")
         axs.imshow(sitk.GetArrayFromImage(image), cmap="Greys")
+        pos = axs.imshow(sitk.GetArrayFromImage(image), cmap="Greys")
+        fig.colorbar(pos, ax=axs)
         if config["debug"] is False:
             plt.close(fig)
         else:
@@ -132,7 +139,8 @@ def substract_background(config, case, img_name, background_img) -> sitk.Image:
     # plt background substracted image
     fig, axs = plt.subplots()
     axs.set_title(f"Background substracted {img_name.split('_')[0]}")
-    axs.imshow(sitk.GetArrayFromImage(new_image))
+    pos = axs.imshow(sitk.GetArrayFromImage(new_image), cmap="Greys")
+    fig.colorbar(pos, ax=axs)
     if config["debug"] is False:
         plt.close(fig)
     else:
@@ -164,9 +172,16 @@ def create_intermediate_finger_folders(config, cas):
     # create intermediate folders
     folders = ["background_substracted", "finger_image", "int_window", "cleaned_artifacts", "closed_fingers"]
     for fld in folders:
-        folder_path = os.path.join(config["data_path"], fld, cas)
+        folder_path = os.path.join(config["data_path"], cas, fld)
+
         if os.path.exists(folder_path) is False:
-            os.makedirs(folder_path)
+            # check base path
+            tmp_path = Path(*Path(folder_path).parts[:1])
+            if os.path.exists(tmp_path) is False:
+                logging.error(f"Path {folder_path} is not accessable. You might need an active VPN Connection to access the folder")
+                exit()
+            else:
+                os.makedirs(folder_path)
 
     # create raw_data folder
     folder_path = os.path.join(config["raw_data_path"], "png_cases", cas)
@@ -208,9 +223,12 @@ def int_window(config, case, img_name, base_image):
     if case in list(config["limits"].keys()):
         lower_threshold = config["limits"][case]["low"]
         upper_threshold = config["limits"][case]["high"]
+        logging.info(f"Found int limits: {lower_threshold}, {upper_threshold}")
     else:
         lower_threshold = 70
         upper_threshold = 250
+        logging.info(f"Using default limits {lower_threshold}, {upper_threshold}")
+
 
     # Create a binary threshold filter
     threshold_filter = sitk.ThresholdImageFilter()
@@ -254,7 +272,7 @@ def reset_cases(config):
         logging.info("----------------------")
 
         raw_path = os.path.dirname(os.path.join(config["data_path"]))
-        folders = glob.glob("*" + os.sep + "*"+ os.sep + cas, root_dir=raw_path)
+        folders = glob.glob("*" + os.sep + "*"+ os.sep + cas + "*" + os.sep, root_dir=raw_path)
         for fld_path in folders:
             # dont remove raw data
             if "raw_cases" in fld_path or "png_cases" in fld_path:
@@ -286,7 +304,8 @@ def clean_artifacts(config, case, img_name, base_image) -> sitk.Image:
             plt.show()
         return image
 
-    px_len = 5
+    px_len = 3
+    times = 1
 
     # get rid of small artifacts by dilation and erosion
     tmp_image = sitk.BinaryErode(
@@ -304,6 +323,23 @@ def clean_artifacts(config, case, img_name, base_image) -> sitk.Image:
         boundaryToForeground=True,
         kernelRadius=(px_len,px_len)
     )
+
+    for i in range(times - 1):
+        tmp_image = sitk.BinaryErode(
+        image1=tmp_image,
+        backgroundValue=0.0,
+        foregroundValue=1.0,
+        boundaryToForeground=True,
+        kernelRadius=(px_len,px_len)
+        )
+
+        tmp_image = sitk.BinaryDilate(
+            image1=tmp_image,
+            backgroundValue=0.0,
+            foregroundValue=1.0,
+            boundaryToForeground=True,
+            kernelRadius=(px_len,px_len)
+        )
 
     # get rid of border artifacts created from cleaning
     tmp_image = delete_border(tmp_image)
@@ -340,7 +376,7 @@ def close_finger(config, case, img_name, base_img) -> sitk.Image:
         return image
     
 
-    px_len = 20
+    px_len = 25
 
     tmp_image = sitk.BinaryDilate(
         image1=base_img,
@@ -432,6 +468,5 @@ def get_fingers(img_name, config, case, background_img) -> float:
         logging.warning(f"No ratio calculation possible for image {img_name}")
         return img_name, 0.0
 if __name__ == "__main__":
-    config = get_config()
-    proc_cases(config)
+    proc_cases()
     # reset_cases(config)
