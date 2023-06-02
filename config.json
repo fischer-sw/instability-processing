@@ -6,7 +6,7 @@
     "results_path": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\image_proc\\results",
     "save_intermediate": true,
     "new_files": true,
-    "debug": true,
+    "debug": false,
     "hpc_job_conf": {
         "wall_time": "01:20:00",
         "cpus": 4

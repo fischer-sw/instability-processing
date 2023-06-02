@@ -27,10 +27,10 @@ def get_image_files(config, case, folder):
         dat_path = os.path.join(dir_path, folder, case)
     elif folder in ["contours", "instabilities"]:
         dir_path = os.path.join(config["results_path"], "final_data")
-        dat_path = os.path.join(dir_path, case, folder)
+        dat_path = os.path.join(dir_path, folder, case)
     else:
         dir_path = os.path.join(config["data_path"])
-        dat_path = os.path.join(dir_path, case, folder)
+        dat_path = os.path.join(dir_path, folder, case)
     if os.path.exists(dir_path) is False:
         logging.error(f"Data directory {dir_path} doesn't exsist. Please check config for valid path.")
         return []
@@ -227,9 +227,8 @@ def read_image(config, folder, filename, case):
         img = cv2.imread(img_path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     else:
-        logging.error(f"Image {img_path} does not exsist")
-        exit()
-
+        logging.warning(f"Image {img_path} does not exsist")
+        return None
     return img
 
 def process_image(img_name, config, cas, background) -> bool:
@@ -388,7 +387,7 @@ def get_contour(config, case, base_image, file_name):
         plt.close(fig)
 
     folder = "contour"
-    dir_path = os.path.join(config["data_path"], case, folder)
+    dir_path = os.path.join(config["data_path"], folder, case)
     if os.path.exists(dir_path) is False:
         os.makedirs(dir_path)
         logging.info(f"Creating dir {folder} for case {case}")
@@ -509,7 +508,7 @@ def close_instability(config, case, base_image, file_name, cam_image):
     fig.colorbar(pos, ax=axs)
 
     folder = "closed_instability"
-    dir_path = os.path.join(config["data_path"], case, folder)
+    dir_path = os.path.join(config["data_path"], folder, case)
     if os.path.exists(dir_path) is False:
         os.makedirs(dir_path)
         logging.info(f"Creating dir {folder} for case {case}")
@@ -722,7 +721,7 @@ def refine_instability(config, case, base_image, file_name):
     fig.colorbar(pos, ax=axs)
     
     folder = "instability"
-    dir_path = os.path.join(config["data_path"], case, folder)
+    dir_path = os.path.join(config["data_path"], folder, case)
     if os.path.exists(dir_path) is False:
         os.makedirs(dir_path)
         logging.info(f"Creating dir {folder} for case {case}")
@@ -748,7 +747,7 @@ def convex_hull(config, case, base_image, file_name):
     fig.colorbar(pos, ax=axs)
 
     folder = "convex_hulls"
-    dir_path = os.path.join(config["data_path"], case, folder)
+    dir_path = os.path.join(config["data_path"], folder, case)
     if os.path.exists(dir_path) is False:
         os.makedirs(dir_path)
         logging.info(f"Creating dir {folder} for case {case}")
@@ -764,7 +763,6 @@ def segment_camera(config, case, base_image, file_name):
     """
     Function that segements instability from an image
     """
-
     # cam corner seed
     cam_seed = [(10,10)]
     px_val = base_image.GetPixel(cam_seed[0])
@@ -909,7 +907,7 @@ def segment_camera(config, case, base_image, file_name):
     axs.imshow(sitk.GetArrayViewFromImage(cam_proc_img))
 
     folder = "segmented_camera"
-    dir_path = os.path.join(config["data_path"], case, folder)
+    dir_path = os.path.join(config["data_path"], folder, case)
     if os.path.exists(dir_path) is False:
         os.makedirs(dir_path)
         logging.info(f"Creating dir {folder} for case {case}")
@@ -925,7 +923,7 @@ def segment_camera(config, case, base_image, file_name):
     axs.set_xlabel("upper_limits")
     axs.set_ylabel("segmented pixel growth rate")
     folder = "cam_delta_data"
-    dir_path = os.path.join(config["data_path"], case, folder)
+    dir_path = os.path.join(config["data_path"], folder, case)
     if os.path.exists(dir_path) is False:
         os.makedirs(dir_path)
         logging.info(f"Creating dir {folder} for case {case}")
@@ -943,7 +941,7 @@ def segment_camera(config, case, base_image, file_name):
     axs.set_xlabel("upper_limits")
     axs.set_ylabel("px_count")
     folder = "cam_px_data"
-    dir_path = os.path.join(config["data_path"], case, folder)
+    dir_path = os.path.join(config["data_path"], folder, case)
     if os.path.exists(dir_path) is False:
         os.makedirs(dir_path)
         logging.info(f"Creating dir {folder} for case {case}")
@@ -1155,7 +1153,7 @@ def segment_instability(config, case, base_image, file_name, cam_seg):
         axs.plot([ele[0]], [ele[1]], marker="*", markersize=8, color="blue")
     axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
     folder = "segmented_instability"
-    dir_path = os.path.join(config["data_path"], case, folder)
+    dir_path = os.path.join(config["data_path"], folder, case)
     if os.path.exists(dir_path) is False:
         os.makedirs(dir_path)
         logging.info(f"Creating dir {folder} for case {case}") 
@@ -1176,7 +1174,7 @@ def segment_instability(config, case, base_image, file_name, cam_seg):
     axs.set_xlabel("upper_limits")
     axs.set_ylabel("segmented pixel growth rate")
     folder = "insta_delta_data"
-    dir_path = os.path.join(config["data_path"], case, folder)
+    dir_path = os.path.join(config["data_path"], folder, case)
     if os.path.exists(dir_path) is False:
         os.makedirs(dir_path)
         logging.info(f"Creating dir {folder} for case {case}")
@@ -1193,7 +1191,7 @@ def make_histo(config, case, folder, name) -> bool:
     Function that creates histogram from image values
     """
     
-    base_path=os.path.join(config["data_path"], "histogramms", case, folder)
+    base_path=os.path.join(config["data_path"], folder, case)
     if os.path.exists(base_path) is False:
         os.makedirs(base_path)
     hist_path = os.path.join(base_path, name + "_hist.png")

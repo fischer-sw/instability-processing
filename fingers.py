@@ -3,6 +3,7 @@ import shutil
 import json
 import glob
 import logging
+import math
 
 from multiprocessing import Pool
 from functools import partial
@@ -48,13 +49,10 @@ def proc_cases():
             continue
 
         background_img = get_base_image(config, cas, background_images[0])
-        res = {
-            "image" : [],
-            "ratio" : []
-        }
+        res = pd.DataFrame({})
         
         if config["debug"] is False and len(config["images"]) == 0:
-            parallel = False
+            parallel = True
         else:
             parallel = False
             
@@ -66,20 +64,19 @@ def proc_cases():
         if parallel:
             cpus = os.cpu_count()
             p = Pool(cpus)
-            for rat in p.map(partial(get_fingers, config=config, case=cas, background_img=background_img), images):
-                logging.debug(f"Multi res : {rat}")
-                res["image"].append(int(rat[0].split('_')[0]))
-                res["ratio"].append(rat[1])
+            for data in p.map(partial(get_fingers, config=config, case=cas, background_img=background_img), images):
+                logging.info(f"Multi res : {data}")
+                res = pd.concat([res,data])
         else:
             for img in images:
-                name, ratio = get_fingers(img, config, cas, background_img=background_img)
-                res["image"].append(int(name.split('_')[0]))
-                res["ratio"].append(ratio)
-        
+                data = get_fingers(img, config, cas, background_img=background_img)
+                res = pd.concat([res, data])
+                
+        logging.info(f"Res : {res}")
         if len(res["ratio"]) > 4:
             fig, axs = plt.subplots()
             axs.set_title(f"Finger ratio {cas}")
-            axs.plot(res["image"], res["ratio"])
+            axs.plot(res["img_n"], res["ratio"])
             axs.set_ylim(0,1)
             fig_path = os.path.join(config["results_path"], "finger_data", cas, "plots", "ratio.png")
             plt.savefig(fig_path)
@@ -91,8 +88,7 @@ def proc_cases():
 
             if len(config["images"]) == 0:
                 csv_path = os.path.join(config["results_path"], "finger_data", cas, "ratio", "ratio.csv")
-                df = pd.DataFrame(res)
-                df.to_csv(csv_path, index=False)
+                res.to_csv(csv_path, index=False)
                 logging.info(f"Saved ratio data at {csv_path}")
 
 
@@ -111,6 +107,12 @@ def substract_background(config, case, img_name, background_img) -> sitk.Image:
     Function that substracts background (first image of series) from current image 
     """
     img_path = os.path.join(config["data_path"], "background_substracted", case, img_name + ".png")
+
+    image = read_image(config, "background_substracted", img_name, case)
+    if image is not None and config["new_files"] is False:
+        logging.info(f"Background substraction already done for image {img_name}")
+        return sitk.GetImageFromArray(image)
+
     if os.path.exists(img_path) and config["new_files"] is False:
         logging.info(f"Already did background substraction for image {img_name}")
         image = read_image(config, "background_substracted", img_name, case)
@@ -146,7 +148,8 @@ def substract_background(config, case, img_name, background_img) -> sitk.Image:
     else:
         plt.show()
 
-    save_intermediate(config, case, img_name, sitk.GetArrayFromImage(new_image), "background_substracted")
+    if config["save_intermediate"]:
+        save_intermediate(config, case, img_name, sitk.GetArrayFromImage(new_image), "background_substracted")
 
     return new_image
 
@@ -207,6 +210,12 @@ def int_window(config, case, img_name, base_image):
     """
 
     img_path = os.path.join(config["data_path"], "int_window", case, img_name + ".png")
+
+    image = read_image(config, "int_window", img_name, case)
+    if image is not None and config["new_files"] is False:
+        logging.info(f"Intensity filtering already done for image {img_name}")
+        return sitk.GetImageFromArray(image)
+
     if os.path.exists(img_path) and config["new_files"] is False:
         logging.info(f"Already did intensity window for image {img_name}")
         image = read_image(config, "int_window", img_name, case)
@@ -257,8 +266,8 @@ def int_window(config, case, img_name, base_image):
         plt.close(fig)
     else:
         plt.show()
-
-    save_intermediate(config, case, img_name, sitk.GetArrayFromImage(output_image), "int_window")
+    if config["save_intermediate"]:
+        save_intermediate(config, case, img_name, sitk.GetArrayFromImage(output_image), "int_window")
 
     return output_image
 
@@ -290,6 +299,12 @@ def clean_artifacts(config, case, img_name, base_image) -> sitk.Image:
     """
 
     img_path = os.path.join(config["data_path"], "cleaned_artifacts", case, img_name + ".png")
+
+    image = read_image(config, "cleaned_artifacts", img_name, case)
+    if image is not None and config["new_files"] is False:
+        logging.info(f"Cleaning already done for image {img_name}")
+        return sitk.GetImageFromArray(image)
+    
     if os.path.exists(img_path) and config["new_files"] is False:
         logging.info(f"Already clean artifacts for image {img_name}")
         image = read_image(config, "cleaned_artifacts", img_name, case)
@@ -352,7 +367,8 @@ def clean_artifacts(config, case, img_name, base_image) -> sitk.Image:
     else:
         plt.show()
 
-    save_intermediate(config, case, img_name, sitk.GetArrayFromImage(tmp_image), "cleaned_artifacts")
+    if config["save_intermediate"]:
+        save_intermediate(config, case, img_name, sitk.GetArrayFromImage(tmp_image), "cleaned_artifacts")
     
     return tmp_image
 
@@ -362,6 +378,12 @@ def close_finger(config, case, img_name, base_img) -> sitk.Image:
     """
 
     img_path = os.path.join(config["data_path"], "closed_fingers", case, img_name + ".png")
+
+    image = read_image(config, "closed_fingers", img_name, case)
+    if image is not None and config["new_files"] is False:
+        logging.info(f"Fingers already closed for image {img_name}")
+        return sitk.GetImageFromArray(image)
+    
     if os.path.exists(img_path) and config["new_files"] is False:
         logging.info(f"Already closed fingers for image {img_name}")
         image = read_image(config, "closed_fingers", img_name, case)
@@ -401,8 +423,8 @@ def close_finger(config, case, img_name, base_img) -> sitk.Image:
         plt.close(fig)
     else:
         plt.show()
-
-    save_intermediate(config, case, img_name, sitk.GetArrayFromImage(tmp_image), "closed_fingers")
+    if config["save_intermediate"]:
+        save_intermediate(config, case, img_name, sitk.GetArrayFromImage(tmp_image), "closed_fingers")
 
     return tmp_image
 
@@ -431,16 +453,22 @@ def diff_image(config, case, img_name, cleaned_image, closed_fingers, base_image
         plt.close(fig)
     else:
         plt.show()
-
-    save_intermediate(config, case, img_name, sitk.GetArrayFromImage(diff_img), "finger_image")
+    if config["save_intermediate"]:
+        save_intermediate(config, case, img_name, sitk.GetArrayFromImage(diff_img), "finger_image")
 
     return diff_img
 
 
-def get_fingers(img_name, config, case, background_img) -> float:
+def get_fingers(img_name, config, case, background_img) -> pd.DataFrame():
     """
     Method that gets the finger information for one image
     """
+    res = {
+        "img_n" : [int(img_name.split("_")[0])],
+        "img_name" : [img_name],
+        "case" : [case]
+    }
+
     logging.info(f"Substracting background for image {img_name}")
     base_image = substract_background(config, case, img_name, background_img)
 
@@ -462,11 +490,18 @@ def get_fingers(img_name, config, case, background_img) -> float:
 
     if len(fing_px_val) > 1 and len(cls_px_val) > 1:
         ratio = round(fing_px_n[1]/cls_px_n[1], 3)
+        res["A_finger"] = [fing_px_n[1]]
+        res["A_total"] = [cls_px_n[1]]
+        res["finger_img_path"] = [os.path.join(config["data_path"], case, "cleaned_artifacts", img_name + ".png")]
+        res["total_img_path"] = [os.path.join(config["data_path"], case, "finger_image", img_name + ".png")]
+        res["d_finger"] = [math.sqrt(4*res["A_finger"][0]/math.pi)]
+        res["d_total"] = [math.sqrt(4*res["A_total"][0]/math.pi)]
+        res["ratio"] = [ratio]
         logging.info(f"Finger ratio for {img_name}: {ratio}")
-        return img_name, ratio
+        return pd.DataFrame(res)
     else:
         logging.warning(f"No ratio calculation possible for image {img_name}")
-        return img_name, 0.0
+        return pd.DataFrame(res)
 if __name__ == "__main__":
     proc_cases()
     # reset_cases(config)
