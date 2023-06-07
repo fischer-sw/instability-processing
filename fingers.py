@@ -4,6 +4,7 @@ import json
 import glob
 import logging
 import math
+import platform
 
 from multiprocessing import Pool
 from functools import partial
@@ -52,7 +53,11 @@ def proc_cases():
         res = pd.DataFrame({})
         
         if config["debug"] is False and len(config["images"]) == 0:
-            parallel = True
+            logging.info(f"Running on platform {platform.system()}")
+            if platform.system() == "Windows":
+                parallel = True
+            else:
+                parallel = False
         else:
             parallel = False
             
@@ -65,7 +70,7 @@ def proc_cases():
             cpus = os.cpu_count()
             p = Pool(cpus)
             for data in p.map(partial(get_fingers, config=config, case=cas, background_img=background_img), images):
-                logging.info(f"Multi res : {data}")
+                logging.debug(f"Multi res : {data}")
                 res = pd.concat([res,data])
         else:
             for img in images:
@@ -88,7 +93,7 @@ def proc_cases():
 
             if len(config["images"]) == 0:
                 csv_path = os.path.join(config["results_path"], "finger_data", cas, "ratio", "ratio.csv")
-                res.to_csv(csv_path, index=False)
+                res.to_csv(csv_path, index=False, sep="\t")
                 logging.info(f"Saved ratio data at {csv_path}")
 
 
@@ -97,26 +102,17 @@ def save_intermediate(config, case, img_name, array, folder):
     """
     Function that saves intermediate to folder
     """
-    logging.info(f"Saved {img_name} at {folder}")
     im_path = os.path.join(config["data_path"], case, folder, img_name + ".png")
-    plt.imsave(im_path, array, cmap="Greys", dpi=1200)
-
+    if os.path.exists(im_path) is False:
+        logging.info(f"Saved {img_name} at {folder}")
+        plt.imsave(im_path, array, cmap="Greys", dpi=1200)
 
 def substract_background(config, case, img_name, background_img) -> sitk.Image:
     """
     Function that substracts background (first image of series) from current image 
     """
-    img_path = os.path.join(config["data_path"], "background_substracted", case, img_name + ".png")
 
-    image = read_image(config, "background_substracted", img_name, case)
-    if image is not None and config["new_files"] is False:
-        logging.info(f"Background substraction already done for image {img_name}")
-        return sitk.GetImageFromArray(image)
-
-    if os.path.exists(img_path) and config["new_files"] is False:
-        logging.info(f"Already did background substraction for image {img_name}")
-        image = read_image(config, "background_substracted", img_name, case)
-        image = sitk.GetImageFromArray(cv2.bitwise_not(image))
+    def plot():
         fig, axs = plt.subplots()
         axs.set_title(f"Background substracted {img_name.split('_')[0]}")
         axs.imshow(sitk.GetArrayFromImage(image), cmap="Greys")
@@ -126,6 +122,22 @@ def substract_background(config, case, img_name, background_img) -> sitk.Image:
             plt.close(fig)
         else:
             plt.show()
+
+    img_path = os.path.join(config["data_path"], case, "background_substracted" ,img_name + ".png")
+    image = None
+    if os.path.exists(img_path):
+        image = read_image(config, "background_substracted", img_name, case)
+        image = sitk.GetImageFromArray(cv2.bitwise_not(image))
+    if image is not None and config["new_files"] is False:
+        logging.info(f"Background substraction already done for image {img_name}")
+        plot()
+        return image
+
+    if os.path.exists(img_path) and config["new_files"] is False:
+        logging.info(f"Already did background substraction for image {img_name}")
+        image = read_image(config, "background_substracted", img_name, case)
+        image = sitk.GetImageFromArray(cv2.bitwise_not(image))
+        plot()
         return image
 
     # get background image array
@@ -209,17 +221,7 @@ def int_window(config, case, img_name, base_image):
     Function that applys intensity window to image
     """
 
-    img_path = os.path.join(config["data_path"], "int_window", case, img_name + ".png")
-
-    image = read_image(config, "int_window", img_name, case)
-    if image is not None and config["new_files"] is False:
-        logging.info(f"Intensity filtering already done for image {img_name}")
-        return sitk.GetImageFromArray(image)
-
-    if os.path.exists(img_path) and config["new_files"] is False:
-        logging.info(f"Already did intensity window for image {img_name}")
-        image = read_image(config, "int_window", img_name, case)
-        image = sitk.GetImageFromArray(cv2.bitwise_not(image))
+    def plot():
         fig, axs = plt.subplots()
         axs.set_title(f"Intensity window {img_name.split('_')[0]}")
         axs.imshow(sitk.GetArrayViewFromImage(image), cmap="Greys")
@@ -227,6 +229,22 @@ def int_window(config, case, img_name, base_image):
             plt.close(fig)
         else:
             plt.show()
+
+    img_path = os.path.join(config["data_path"], case, "int_window" ,img_name + ".png")
+    image = None
+    if os.path.exists(img_path):
+        image = read_image(config, "int_window", img_name, case)
+        image = sitk.GetImageFromArray(cv2.bitwise_not(image))
+    if image is not None and config["new_files"] is False:
+        plot()
+        logging.info(f"Intensity filtering already done for image {img_name}")
+        return image
+
+    if os.path.exists(img_path) and config["new_files"] is False:
+        logging.info(f"Already did intensity window for image {img_name}")
+        image = read_image(config, "int_window", img_name, case)
+        image = sitk.GetImageFromArray(cv2.bitwise_not(image))
+        plot()
         return image
     
     if case in list(config["limits"].keys()):
@@ -271,24 +289,26 @@ def int_window(config, case, img_name, base_image):
 
     return output_image
 
-def reset_cases(config):
+def reset_cases():
     """
     Function that resets case while deleting all images within tmp_data and png_cases folder
     """
+    config = get_config()
+
     for cas in config["cases"]:
         logging.info("----------------------")
         logging.info(f"Start cleaning case {cas}")
         logging.info("----------------------")
 
         raw_path = os.path.dirname(os.path.join(config["data_path"]))
-        folders = glob.glob("*" + os.sep + "*"+ os.sep + cas + "*" + os.sep, root_dir=raw_path)
+        folders = glob.glob("*" + os.sep + "*"+ os.sep + cas + "*" + os.sep, root_dir=raw_path) + glob.glob("*" + os.sep + "*" +cas + "*" + os.sep, root_dir=raw_path)
         for fld_path in folders:
             # dont remove raw data
             if "raw_cases" in fld_path or "png_cases" in fld_path:
                 continue
             else:
                 # only remove calculated data
-                shutil.rmtree(os.path.join(raw_path, fld_path))
+                shutil.rmtree(os.path.join(raw_path, fld_path), ignore_errors=True)
                 logging.info(f"Removed {fld_path} for case {cas}")
     logging.info("Cleaning cases finished")
     
@@ -298,18 +318,7 @@ def clean_artifacts(config, case, img_name, base_image) -> sitk.Image:
     Function that gets rid of small artifacts within the image by Erosion and Dilation
     """
 
-    img_path = os.path.join(config["data_path"], "cleaned_artifacts", case, img_name + ".png")
-
-    image = read_image(config, "cleaned_artifacts", img_name, case)
-    if image is not None and config["new_files"] is False:
-        logging.info(f"Cleaning already done for image {img_name}")
-        return sitk.GetImageFromArray(image)
-    
-    if os.path.exists(img_path) and config["new_files"] is False:
-        logging.info(f"Already clean artifacts for image {img_name}")
-        image = read_image(config, "cleaned_artifacts", img_name, case)
-        image = sitk.GetImageFromArray(cv2.bitwise_not(image))
-
+    def plot():
         fig, axs = plt.subplots()
         axs.set_title(f"Cleaned artifacts {img_name.split('_')[0]}")
         axs.imshow(sitk.GetArrayViewFromImage(image), cmap="Greys")
@@ -317,13 +326,29 @@ def clean_artifacts(config, case, img_name, base_image) -> sitk.Image:
             plt.close(fig)
         else:
             plt.show()
+
+    img_path = os.path.join(config["data_path"], case, "cleaned_artifacts" ,img_name + ".png")
+    image = None
+    if os.path.exists(img_path):
+        image = read_image(config, "cleaned_artifacts", img_name, case)
+        image = sitk.GetImageFromArray(cv2.bitwise_not(image))
+    if image is not None and config["new_files"] is False:
+        plot()
+        logging.info(f"Cleaning already done for image {img_name}")
+        return image
+    
+    if os.path.exists(img_path) and config["new_files"] is False:
+        logging.info(f"Already clean artifacts for image {img_name}")
+        image = read_image(config, "cleaned_artifacts", img_name, case)
+        image = sitk.GetImageFromArray(cv2.bitwise_not(image))
+        plot()
         return image
 
     px_len = 3
     times = 1
 
     # get rid of small artifacts by dilation and erosion
-    tmp_image = sitk.BinaryErode(
+    image = sitk.BinaryErode(
         image1=base_image,
         backgroundValue=0.0,
         foregroundValue=1.0,
@@ -331,8 +356,8 @@ def clean_artifacts(config, case, img_name, base_image) -> sitk.Image:
         kernelRadius=(px_len,px_len)
     )
 
-    tmp_image = sitk.BinaryDilate(
-        image1=tmp_image,
+    image = sitk.BinaryDilate(
+        image1=image,
         backgroundValue=0.0,
         foregroundValue=1.0,
         boundaryToForeground=True,
@@ -340,16 +365,16 @@ def clean_artifacts(config, case, img_name, base_image) -> sitk.Image:
     )
 
     for i in range(times - 1):
-        tmp_image = sitk.BinaryErode(
-        image1=tmp_image,
+        image = sitk.BinaryErode(
+        image1=image,
         backgroundValue=0.0,
         foregroundValue=1.0,
         boundaryToForeground=True,
         kernelRadius=(px_len,px_len)
         )
 
-        tmp_image = sitk.BinaryDilate(
-            image1=tmp_image,
+        image = sitk.BinaryDilate(
+            image1=image,
             backgroundValue=0.0,
             foregroundValue=1.0,
             boundaryToForeground=True,
@@ -357,37 +382,21 @@ def clean_artifacts(config, case, img_name, base_image) -> sitk.Image:
         )
 
     # get rid of border artifacts created from cleaning
-    tmp_image = delete_border(tmp_image)
+    image = delete_border(image)
 
-    fig, axs = plt.subplots()
-    axs.set_title(f"Cleaned artifacts {img_name.split('_')[0]}")
-    axs.imshow(sitk.GetArrayViewFromImage(tmp_image), cmap="Greys")
-    if config["debug"] is False:
-        plt.close(fig)
-    else:
-        plt.show()
+    plot()
 
     if config["save_intermediate"]:
-        save_intermediate(config, case, img_name, sitk.GetArrayFromImage(tmp_image), "cleaned_artifacts")
+        save_intermediate(config, case, img_name, sitk.GetArrayFromImage(image), "cleaned_artifacts")
     
-    return tmp_image
+    return image
 
 def close_finger(config, case, img_name, base_img) -> sitk.Image:
     """
     Function that closes all the fingers within an image
     """
 
-    img_path = os.path.join(config["data_path"], "closed_fingers", case, img_name + ".png")
-
-    image = read_image(config, "closed_fingers", img_name, case)
-    if image is not None and config["new_files"] is False:
-        logging.info(f"Fingers already closed for image {img_name}")
-        return sitk.GetImageFromArray(image)
-    
-    if os.path.exists(img_path) and config["new_files"] is False:
-        logging.info(f"Already closed fingers for image {img_name}")
-        image = read_image(config, "closed_fingers", img_name, case)
-        image = sitk.GetImageFromArray(cv2.bitwise_not(image))
+    def plot():
         fig, axs = plt.subplots()
         axs.set_title(f"Finger closed {img_name.split('_')[0]}")
         axs.imshow(sitk.GetArrayViewFromImage(image), cmap="Greys")
@@ -395,12 +404,28 @@ def close_finger(config, case, img_name, base_img) -> sitk.Image:
             plt.close(fig)
         else:
             plt.show()
+
+    img_path = os.path.join(config["data_path"], case, "closed_fingers" ,img_name + ".png")
+    image = None
+    if os.path.exists(img_path):
+        image = read_image(config, "closed_fingers", img_name, case)
+        image = sitk.GetImageFromArray(cv2.bitwise_not(image))
+    if image is not None and config["new_files"] is False:
+        plot()
+        logging.info(f"Fingers already closed for image {img_name}")
+        return image
+    
+    if os.path.exists(img_path) and config["new_files"] is False:
+        logging.info(f"Already closed fingers for image {img_name}")
+        image = read_image(config, "closed_fingers", img_name, case)
+        image = sitk.GetImageFromArray(cv2.bitwise_not(image))
+        plot()
         return image
     
 
     px_len = 25
 
-    tmp_image = sitk.BinaryDilate(
+    image = sitk.BinaryDilate(
         image1=base_img,
         backgroundValue=0.0,
         foregroundValue=1.0,
@@ -408,25 +433,19 @@ def close_finger(config, case, img_name, base_img) -> sitk.Image:
         kernelRadius=(px_len,px_len)
     )
 
-    tmp_image = sitk.BinaryErode(
-        image1=tmp_image,
+    image = sitk.BinaryErode(
+        image1=image,
         backgroundValue=0.0,
         foregroundValue=1.0,
         boundaryToForeground=True,
         kernelRadius=(px_len,px_len)
     )
 
-    fig, axs = plt.subplots()
-    axs.set_title(f"Finger closed {img_name.split('_')[0]}")
-    axs.imshow(sitk.GetArrayViewFromImage(tmp_image), cmap="Greys")
-    if config["debug"] is False:
-        plt.close(fig)
-    else:
-        plt.show()
+    plot()
     if config["save_intermediate"]:
-        save_intermediate(config, case, img_name, sitk.GetArrayFromImage(tmp_image), "closed_fingers")
+        save_intermediate(config, case, img_name, sitk.GetArrayFromImage(image), "closed_fingers")
 
-    return tmp_image
+    return image
 
 def diff_image(config, case, img_name, cleaned_image, closed_fingers, base_image):
     """
@@ -503,5 +522,5 @@ def get_fingers(img_name, config, case, background_img) -> pd.DataFrame():
         logging.warning(f"No ratio calculation possible for image {img_name}")
         return pd.DataFrame(res)
 if __name__ == "__main__":
+    # reset_cases()
     proc_cases()
-    # reset_cases(config)

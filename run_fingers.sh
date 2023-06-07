@@ -79,7 +79,7 @@ function do_run_all {
 	for d in $JOBS
     do
 		TMP_DIR=$(cut -d '/' -f2 <<< $d)
-		TMP_PATH="$RES_DIR/final_data/$TMP_DIR/instabilities"
+		TMP_PATH="$RES_DIR/finger_data/$1/ratio"
 		if [ -d $TMP_PATH ]; then
 			FILES=$(ls "$TMP_PATH" | wc -l)
 		else

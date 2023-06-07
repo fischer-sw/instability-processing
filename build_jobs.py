@@ -99,7 +99,7 @@ if __name__ == "__main__":
     with open(run_methods_path) as f:
         run_methods = f.readlines()
 
-    with open(run_methods_path) as f:
+    with open(run_fingers_path) as f:
         run_fingers = f.readlines()
 
     # build job.sh from template
@@ -118,6 +118,7 @@ if __name__ == "__main__":
         
         tmp_template.append(line)
 
+    # write run_methods.sh to target location
     template_target = os.path.join(job_base_path, "run_methods.sh")
     if os.path.exists(template_target) is False:
         with open(template_target, "w") as f:
@@ -138,7 +139,7 @@ if __name__ == "__main__":
         
         tmp_template.append(line)
     
-    # write job.sh to target location
+    # write run_fingers.sh to target location
     template_target = os.path.join(job_base_path, "run_fingers.sh")
     if os.path.exists(template_target) is False:
         with open(template_target, "w") as f:

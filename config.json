@@ -5,17 +5,18 @@
     "raw_data_path": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\image_proc\\raw_data",
     "results_path": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\image_proc\\results",
     "save_intermediate": true,
-    "new_files": true,
+    "new_files": false,
     "debug": false,
     "hpc_job_conf": {
-        "wall_time": "01:20:00",
+        "wall_time": "06:30:00",
         "cpus": 4
     },
     "images": [
-        40
+        
     ],
     "cases": [
-        "c14tab_1ml_0,6mm_spacer"
+        "0,5mmspacer0.1ml2",
+        "c14tab_1.5ml_0,6_mm_spacer"
     ],
 
     "limits" : {
