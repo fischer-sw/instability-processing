@@ -22,7 +22,7 @@ def build_job(config, case):
     tmp_config["cases"] = [cas]
     tmp_config["images"] = []
     tmp_config["debug"] = False
-    tmp_config["new_files"] = False
+    tmp_config["new_files"] = True
     tmp_config["save_intermediate"] = True
 
     tmp_config["results_path"] = "/".join(["","bigdata", "FWDT", "DFischer"]+ tmp_config["results_path"].split("\\")[6:])

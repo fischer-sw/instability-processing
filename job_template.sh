@@ -58,7 +58,10 @@ source test-env/bin/activate >> ${LOG_FILE} 2>&1
 python -m pip install --upgrade pip >> $LOG_FILE 2>&1
 python -m pip install -r ./requirements.txt >> ${LOG_FILE} 2>&1
 
-# python ./methods.py calc_case_ratio >> $LOG_FILE 2>&1
+# calculating region growing method
+python ./methods.py calc_case_ratio >> $LOG_FILE 2>&1
+
+# calculating using intensity window
 python ./fingers.py proc_cases >> $LOG_FILE 2>&1
 
 Log INFO "JOB FINISH"

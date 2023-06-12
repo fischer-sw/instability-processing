@@ -492,8 +492,8 @@ def combine_results():
         tmp_path = os.path.join(path, file)
         if os.path.exists(tmp_path):
             tmp_data = pd.read_csv(tmp_path, sep="\t")
-            res = pd.concat([res, tmp_data])
-    res = res.reset_index()
+            res = pd.concat([res, tmp_data], ignore_index=True)
+    # res = res.reset_index()
     logging.info(res.info())
 
     # adopt path for windows systems
