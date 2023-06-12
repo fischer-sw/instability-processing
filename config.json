@@ -11,283 +11,279 @@
         "wall_time": "06:30:00",
         "cpus": 4
     },
-    "images": [
-        
-    ],
+    "images": [],
     "cases": [
         "0,5mmspacer0.1ml2",
-        "c14tab_1.5ml_0,6_mm_spacer"
+        "c14tab_1.5ml_0,6_mm_spacer",
+        "6mmspacer0.4mlflow_2",
+        "0.6mmspacer0.8mlflow_2"
     ],
-
-    "limits" : {
-        "c14tab_1ml_0,6mm_spacer" : {
-            "low" : 20,
-            "high" : 255
-        },
-        "c14tab_1.5ml_0,6_mm_spacer" : {
-            "low" : 20,
-            "high" : 255
-        },
-        "c14tab_1,5ml_0,6mm_spacer_2" : {
-            "low" : 20,
-            "high" : 255
-        },
-        "c14tab_1,5ml_0,6_mm_spacer_3" : {
-            "low" : 20,
-            "high" : 255
-        },
-        "c14tab_0.5_ml_0,6mm_spacer" : {
-            "low" : 20,
-            "high" : 255
-        },
-        "c14tab_0,5ml_0,6_mm_spacer_2" : {
-            "low" : 20,
-            "high" : 255
-        },
-        "c14tab_0,5_ml_0,6_spacer_3" : {
-            "low" : 20,
-            "high" : 255
-        },
-        "6mmspacer0.4mlflow_3" : {
-            "low" : 30,
-            "high" : 120
-        },
-        "6mmspacer0.4mlflow_2" : {
-            "low" : 30,
-            "high" : 100
-        },
-        "0.75mmspacer0.08flow3" : {
-            "low" : 30,
-            "high" : 100
-        },
-        "0.75mmspacer0.08flow2" : {
-            "low" : 30,
-            "high" : 200
-        },
-        "0.75mmspacer0.1ml3" : {
-            "low" : 50,
-            "high" : 120
-        },
-        "0.75mmspacer0.1ml2" : {
-            "low" : 50,
-            "high" : 120
-        },
-        "0.75mm_spacer_1mlflow_repeat_4" : {
-            "low" : 50,
-            "high" : 150
-        },
-        "0.75mm_spacer_1mlflow_repeat_3" : {
-            "low" : 50,
-            "high" : 150
-        },
-        "0.75mm_spacer_1mlflow_repeat_2" : {
-            "low" : 50,
-            "high" : 150
-        },
-        "0.75mm_spacer_1mlflow_repeat_1" : {
-            "low" : 50,
-            "high" : 150
-        },
-        "0.75mm_spacer_0.1ml_flow_3" : {
-            "low" : 50,
-            "high" : 110
-        },
-        "0.75mm_spacer_0.1ml_flow_1" : {
-            "low" : 50,
-            "high" : 110
-        },
-        "0.75mm_spacer_0,5_ml_flow_2" : {
-            "low" : 50,
-            "high" : 110
-        },
-        "0.75mm_spacer_0,5_ml_flow_3" : {
-            "low" : 50,
-            "high" : 110
-        },
-        "0.75mm_spacer_0,5_ml_flow_1" : {
-            "low" : 50,
-            "high" : 110
-        },
-        "0.6mmspacer0.8mlflow_3" : {
-            "low" : 50,
-            "high" : 120
-        },
-        "0.6mmspacer0.8mlflow_2" : {
-            "low" : 30,
-            "high" : 120
-        },
-        "0.6mmspacer0.08ml_flow3" : {
-            "low" : 30,
-            "high" : 120
-        },
-        "0.6mmspacer0.08ml_flow2" : {
-            "low" : 30,
-            "high" : 120
-        },
-        "0.6mmspacer0.08ml_flow" : {
-            "low" : 30,
-            "high" : 120
-        },
-        "0.6mmspacer0.7mlflow_3" : {
-            "low" : 30,
-            "high" : 120
-        },
-        "0.6mmspacer0.7mlflow_2" : {
-            "low" : 30,
-            "high" : 120
-        },
-        "0.6mmspacer0.5mlflow" : {
-            "low" : 30,
-            "high" : 160
-        },
-        "0.6mmspacer0.3mlflow2" : {
-            "low" : 30,
-            "high" : 160
-        },
-        "0.6mm2mlflow" : {
-            "low" : 30,
-            "high" : 120
-        },
-        "0.6mm1mlflow3" : {
-            "low" : 30,
-            "high" : 120
-        },
-        "0.6mm1mlflow2" : {
-            "low" : 30,
-            "high" : 120
-        },
-        "0.6mm0.5mlflow_3" : {
-            "low" : 30,
-            "high" : 150
-        },
-        "0.6mm0.5mlflow_2" : {
-            "low" : 30,
-            "high" : 150
-        },
-        "0.6mm_spacer_0.8mlflow" : {
-            "low" : 30,
-            "high" : 120
-        },
-        "0.6mm,_1mlflow" : {
-            "low" : 30,
-            "high" : 120
-        },
-        "0.6mlspacer0.7mlflow" : {
-            "low" : 30,
-            "high" : 160
-        },
-        "0.5mmspacer0.5ml" : {
-            "low" : 30,
-            "high" : 172
-        },
-        "0.5mmspacer0.1ml_water2" : {
-            "low" : 30,
-            "high" : 215
-        },
-        "0.1spacer_0.5ml3" : {
-            "low" : 70,
-            "high" : 215
-        },
-        "0.1spacer_0.5ml2" : {
-            "low" : 70,
-            "high" : 215
-        },
-        "0.1mmspacer0.010mlmin__2" : {
-            "low" : 70,
-            "high" : 255
-        },
-        "0.1mmspacer_0.015ml_4" : {
-            "low" : 70,
-            "high" : 245
-        },
-        "0.1mmspacer_0.015ml_3" : {
-            "low" : 70,
-            "high" : 245
-        },
-        "0.1mmspacer_0.013mlmin2" : {
-            "low" : 70,
-            "high" : 245
-        },
-        "0.1mmspacer_0.013mlmin3" : {
-            "low" : 70,
-            "high" : 245
-        },
-        "0.1mmspacer_0.013mlmin" : {
-            "low" : 70,
-            "high" : 245
-        },
-        "0.1mmspacer_0.02ml_2" : {
-            "low" : 70,
-            "high" : 235
-        },
-        "0.1mmspacer_0.015ml_2" : {
-            "low" : 70,
-            "high" : 250 
-        },
-        "0,1spacer0.005ml" : {
-            "low" : 50,
-            "high" : 240 
-        },
-        "0.6mm2lflow2" : {
-            "low" : 30,
-            "high" : 90 
-        },
-        "0.1mmspacer_0.4ml2" : {
-            "low" : 70,
-            "high" : 225 
-        },
-        "0.1mmspacer0.012mlmin2" : {
-            "low" : 52,
-            "high" : 225 
-        },
-        "0.1mmspacer0.010mlmin" : {
-            "low" : 20,
-            "high" : 250 
-        },
-        "0,5mmspacer0.1ml2" : {
-            "low" : 70,
-            "high" : 200 
-        },
-        "0,5mmspacer0.1ml3" : {
-            "low" : 70,
-            "high" : 200 
-        },
-        "0,5mmspacer0.5ml2" : {
-            "low" : 20,
-            "high" : 170
-        },
-        "0,5mmspacer1ml_water" : {
-            "low" : 20,
-            "high" : 170
-        },
-        "0,75mm_spacer_1ml_flow_repeat_5" : {
-            "low" : 70,
-            "high" : 170
-        },
-        "0,75mmspacer1mlflow2" : {
-            "low" : 30,
-            "high" : 170
-        },
-        "0,75mmspacer1mlflow3" : {
-            "low" : 30,
-            "high" : 170
-        },
-        "0.1mm_space_0.012ml_water" : {
-            "low" : 70,
-            "high" : 250
-        },
-        "0.1mmspacer_0.02ml" : {
-            "low" : 70,
-            "high" : 235
+    "limits": {
+        "c14tab_1ml_0,6mm_spacer": {
+            "low": 20,
+            "high": 255
+        },
+        "c14tab_1.5ml_0,6_mm_spacer": {
+            "low": 20,
+            "high": 255
+        },
+        "c14tab_1,5ml_0,6mm_spacer_2": {
+            "low": 20,
+            "high": 255
+        },
+        "c14tab_1,5ml_0,6_mm_spacer_3": {
+            "low": 20,
+            "high": 255
+        },
+        "c14tab_0.5_ml_0,6mm_spacer": {
+            "low": 20,
+            "high": 255
+        },
+        "c14tab_0,5ml_0,6_mm_spacer_2": {
+            "low": 20,
+            "high": 255
+        },
+        "c14tab_0,5_ml_0,6_spacer_3": {
+            "low": 20,
+            "high": 255
+        },
+        "6mmspacer0.4mlflow_3": {
+            "low": 30,
+            "high": 120
+        },
+        "6mmspacer0.4mlflow_2": {
+            "low": 30,
+            "high": 100
+        },
+        "0.75mmspacer0.08flow3": {
+            "low": 30,
+            "high": 100
+        },
+        "0.75mmspacer0.08flow2": {
+            "low": 30,
+            "high": 200
+        },
+        "0.75mmspacer0.1ml3": {
+            "low": 50,
+            "high": 120
+        },
+        "0.75mmspacer0.1ml2": {
+            "low": 50,
+            "high": 120
+        },
+        "0.75mm_spacer_1mlflow_repeat_4": {
+            "low": 50,
+            "high": 150
+        },
+        "0.75mm_spacer_1mlflow_repeat_3": {
+            "low": 50,
+            "high": 150
+        },
+        "0.75mm_spacer_1mlflow_repeat_2": {
+            "low": 50,
+            "high": 150
+        },
+        "0.75mm_spacer_1mlflow_repeat_1": {
+            "low": 50,
+            "high": 150
+        },
+        "0.75mm_spacer_0.1ml_flow_3": {
+            "low": 50,
+            "high": 110
+        },
+        "0.75mm_spacer_0.1ml_flow_1": {
+            "low": 50,
+            "high": 110
+        },
+        "0.75mm_spacer_0,5_ml_flow_2": {
+            "low": 50,
+            "high": 110
+        },
+        "0.75mm_spacer_0,5_ml_flow_3": {
+            "low": 50,
+            "high": 110
+        },
+        "0.75mm_spacer_0,5_ml_flow_1": {
+            "low": 50,
+            "high": 110
+        },
+        "0.6mmspacer0.8mlflow_3": {
+            "low": 50,
+            "high": 120
+        },
+        "0.6mmspacer0.8mlflow_2": {
+            "low": 30,
+            "high": 120
+        },
+        "0.6mmspacer0.08ml_flow3": {
+            "low": 30,
+            "high": 120
+        },
+        "0.6mmspacer0.08ml_flow2": {
+            "low": 30,
+            "high": 120
+        },
+        "0.6mmspacer0.08ml_flow": {
+            "low": 30,
+            "high": 120
+        },
+        "0.6mmspacer0.7mlflow_3": {
+            "low": 30,
+            "high": 120
+        },
+        "0.6mmspacer0.7mlflow_2": {
+            "low": 30,
+            "high": 120
+        },
+        "0.6mmspacer0.5mlflow": {
+            "low": 30,
+            "high": 160
+        },
+        "0.6mmspacer0.3mlflow2": {
+            "low": 30,
+            "high": 160
+        },
+        "0.6mm2mlflow": {
+            "low": 30,
+            "high": 120
+        },
+        "0.6mm1mlflow3": {
+            "low": 30,
+            "high": 120
+        },
+        "0.6mm1mlflow2": {
+            "low": 30,
+            "high": 120
+        },
+        "0.6mm0.5mlflow_3": {
+            "low": 30,
+            "high": 150
+        },
+        "0.6mm0.5mlflow_2": {
+            "low": 30,
+            "high": 150
+        },
+        "0.6mm_spacer_0.8mlflow": {
+            "low": 30,
+            "high": 120
+        },
+        "0.6mm,_1mlflow": {
+            "low": 30,
+            "high": 120
+        },
+        "0.6mlspacer0.7mlflow": {
+            "low": 30,
+            "high": 160
+        },
+        "0.5mmspacer0.5ml": {
+            "low": 30,
+            "high": 172
+        },
+        "0.5mmspacer0.1ml_water2": {
+            "low": 30,
+            "high": 215
+        },
+        "0.1spacer_0.5ml3": {
+            "low": 70,
+            "high": 215
+        },
+        "0.1spacer_0.5ml2": {
+            "low": 70,
+            "high": 215
+        },
+        "0.1mmspacer0.010mlmin__2": {
+            "low": 70,
+            "high": 255
+        },
+        "0.1mmspacer_0.015ml_4": {
+            "low": 70,
+            "high": 245
+        },
+        "0.1mmspacer_0.015ml_3": {
+            "low": 70,
+            "high": 245
+        },
+        "0.1mmspacer_0.013mlmin2": {
+            "low": 70,
+            "high": 245
+        },
+        "0.1mmspacer_0.013mlmin3": {
+            "low": 70,
+            "high": 245
+        },
+        "0.1mmspacer_0.013mlmin": {
+            "low": 70,
+            "high": 245
+        },
+        "0.1mmspacer_0.02ml_2": {
+            "low": 70,
+            "high": 235
+        },
+        "0.1mmspacer_0.015ml_2": {
+            "low": 70,
+            "high": 250
+        },
+        "0,1spacer0.005ml": {
+            "low": 50,
+            "high": 240
+        },
+        "0.6mm2lflow2": {
+            "low": 30,
+            "high": 90
+        },
+        "0.1mmspacer_0.4ml2": {
+            "low": 70,
+            "high": 225
+        },
+        "0.1mmspacer0.012mlmin2": {
+            "low": 52,
+            "high": 225
+        },
+        "0.1mmspacer0.010mlmin": {
+            "low": 20,
+            "high": 250
+        },
+        "0,5mmspacer0.1ml2": {
+            "low": 70,
+            "high": 200
+        },
+        "0,5mmspacer0.1ml3": {
+            "low": 70,
+            "high": 200
+        },
+        "0,5mmspacer0.5ml2": {
+            "low": 20,
+            "high": 170
+        },
+        "0,5mmspacer1ml_water": {
+            "low": 20,
+            "high": 170
+        },
+        "0,75mm_spacer_1ml_flow_repeat_5": {
+            "low": 70,
+            "high": 170
+        },
+        "0,75mmspacer1mlflow2": {
+            "low": 30,
+            "high": 170
+        },
+        "0,75mmspacer1mlflow3": {
+            "low": 30,
+            "high": 170
+        },
+        "0.1mm_space_0.012ml_water": {
+            "low": 70,
+            "high": 250
+        },
+        "0.1mmspacer_0.02ml": {
+            "low": 70,
+            "high": 235
         }
     },
-
     "all_cases": [
         "0.6mmspacer0.8mlflow_3",
-        "0.5mmspacer1ml2",
         "c14tab_1,5ml_0,6mm_spacer_2",
         "0.1mmspacer_0.013mlmin3",
-        "0.1mm spcer 0.01 mlmin1",
         "0,5mmspacer0.1ml2",
         "0.6mmspacer0.08ml_flow",
         "0.5mmspacer0.5ml",
@@ -295,9 +291,9 @@
         "0.1mmspacer_0.015ml_2",
         "0.1mmspacer0.012mlmin3",
         "0.75mm_spacer_0,5_ml_flow_3",
-        "0.75mm_spacer_0.1ml_flow_2",
         "0,5mmspacer0.1ml",
         "0.75mmspacer0.08flow3",
+        "0.6_mm_Spacer_0.08_mlmin_2",
         "0,5mmspacer1ml_water",
         "c14tab..._1ml_underlight_5",
         "0.5mmspacer1ml",
@@ -313,33 +309,31 @@
         "0.1spacer_0.5ml3",
         "c14tab_1.5ml_0,6_mm_spacer",
         "0.5mmspacer0.1ml_water2",
+        "0.6_mm_Spacer_0.4_mlmin_1",
         "0.75mmspacer0.1ml",
         "0.75mm_spacer_0,5_ml_flow_2",
-        "0.6 mm Spacer 0.4 mlmin 1",
         "0.1spacer_0.5ml2",
-        "0.1mmspacer0.010mlmin_3",
         "6mmspacer0.4mlflow_2",
         "0,75mmspacer1mlflow",
         "0.1mmspacer_0.015ml_4",
         "0.75mm_spacer_1mlflow_repeat_1",
         "0.6mmspacer0.8mlflow_2",
+        "0.1mm_spcer_0.01_mlmin1",
         "6mmspacer0.4mlflow_3",
         "0.1mmspacer_0.015ml_3",
         "c14tab_1,5ml_0,6_mm_spacer_3",
         "0.6mm_spacer_0.8mlflow",
         "0.1mmspacer_0.4ml",
+        "0.6_mm_Spacer_0.08_mlmin_1",
         "0.6mmspacer0.08ml_flow2",
         "0.1mmspacer_0.02ml",
         "0.6mm0.5mlflow_2",
         "0.1spacer_0.5ml",
-        "0.6 mm Spacer 0.08 mlmin 2",
         "c14tab_0.5_ml_0,6mm_spacer",
         "0,1spacer0.005ml",
         "0.6mmspacer0.08ml_flow3",
         "0.1mmspacer_0.015ml",
         "0.6mm0.5mlflow_3",
-        "0.5mmspacer1ml3",
-        "0.6 mm Spacer 0.4 mlmin 2",
         "c14tab_1ml_0,6mm_spacer",
         "0.6mm1mlflow3",
         "6mmspacer0.4mlflow",
@@ -356,22 +350,19 @@
         "0.75mmspacer0.1ml3",
         "0.75mm_spacer_0.1ml_flow_1",
         "0.6mmspacer0.7mlflow_3",
-        "0.6 mm Spacer 0.08 mlmin 1",
         "0.1mm_space_0.012ml_water",
         "c14tab_0,5_ml_0,6_spacer_3",
-        "0.6mmspacer0.3mlflow3",
         "0.75mm_spacer_1mlflow_repeat_4",
         "0.6mmspacer0.5mlflow",
         "0.6mlspacer0.7mlflow",
-        "0.75mm_spacer_0.1ml_flow_3",
         "0.6mm2lflow2",
         "0.6mmspacer0.3mlflow",
         "0.75mm_spacer_0,5_ml_flow_1",
         "0,75mm_spacer_1ml_flow_repeat_5",
+        "0.6_mm_Spacer_0.4_mlmin_2",
         "c14tab_0,5ml_0,6_mm_spacer_2",
         "0.6mm2mlflow",
         "0.6mm,_1mlflow",
-        "0.1mm spcer 0.01 mlmin 2",
         "0.6mm1mlflow2"
     ]
 }

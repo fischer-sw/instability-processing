@@ -12,7 +12,6 @@ function do_job {
 	else
 		FILES=0
 	fi
-	FILES=0
 	if [ $FILES == 0 ]; then
 
 		echo "Checking if Job $1 is already started ..."

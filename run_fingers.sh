@@ -5,14 +5,12 @@ RAW_DIR=%raw_data_path%
 
 function do_job {
     cd "$1"
-	
 	local TMP_PATH="$RES_DIR/finger_data/$1/ratio"
 	if [ -d "$TMP_PATH" ]; then
 		FILES=$(ls "$TMP_PATH" | wc -l)
 	else
 		FILES=0
 	fi
-	FILES=0
 	if [ $FILES == 0 ]; then
 
 		echo "Checking if Job $1 is already started ..."

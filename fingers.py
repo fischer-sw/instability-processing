@@ -477,6 +477,42 @@ def diff_image(config, case, img_name, cleaned_image, closed_fingers, base_image
 
     return diff_img
 
+def combine_results():
+    """
+    Function that combines all results into one .csv file
+    """
+    config = get_config()
+    # create empty results object
+    res = pd.DataFrame({})
+
+    # find all csv files within results folder
+    path = os.path.join(config["results_path"], "finger_data")
+    csvs = glob.glob("*" + os.sep+ "*"+ os.sep+ "*.csv", root_dir=path)
+    for file in csvs:
+        tmp_path = os.path.join(path, file)
+        if os.path.exists(tmp_path):
+            tmp_data = pd.read_csv(tmp_path, sep="\t")
+            res = pd.concat([res, tmp_data])
+    res = res.reset_index()
+    logging.info(res.info())
+
+    # adopt path for windows systems
+
+    bigdata_path = "//gssnas/bigdata"
+    res.finger_img_path = res.finger_img_path.replace({'/bigdata': bigdata_path}, regex=True)
+    res.total_img_path = res.total_img_path.replace({'/bigdata': bigdata_path}, regex=True)
+
+    res.finger_img_path = res.finger_img_path.replace({'/': '\\\\'}, regex=True)
+    res.total_img_path = res.total_img_path.replace({'/': '\\\\'}, regex=True)
+
+    if os.path.exists(res.finger_img_path[10]):
+        logging.info("Path transformation successfull")
+    else:
+        logging.warning("Path transfomration not successfull")
+    res_path = os.path.join(path, "all_data.csv")
+    res.to_csv(res_path, index=False, sep="\t")
+    logging.info(f"Saved combined data to {res_path}")
+
 
 def get_fingers(img_name, config, case, background_img) -> pd.DataFrame():
     """
@@ -524,3 +560,4 @@ def get_fingers(img_name, config, case, background_img) -> pd.DataFrame():
 if __name__ == "__main__":
     # reset_cases()
     proc_cases()
+    # combine_results()

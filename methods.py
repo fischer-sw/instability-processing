@@ -1244,6 +1244,7 @@ def create_animation(config, case, data_folder):
     logging.info(f"Created {data_folder} video for case {case}")
 
 if __name__ == "__main__":
+    config = get_config()
     calc_case_ratio()
     # config = get_config()
     # get_all_cases(config)
