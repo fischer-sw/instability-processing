@@ -216,10 +216,14 @@ def create_intermediate_finger_folders(config, cas):
         if os.path.exists(folder_path) is False:
             os.makedirs(folder_path)
 
+
+
 def int_window(config, case, img_name, base_image):
     """
     Function that applys intensity window to image
     """
+    lower_threshold = 70
+    upper_threshold = 250
 
     def plot():
         fig, axs = plt.subplots()
@@ -252,8 +256,6 @@ def int_window(config, case, img_name, base_image):
         upper_threshold = config["limits"][case]["high"]
         logging.info(f"Found int limits: {lower_threshold}, {upper_threshold}")
     else:
-        lower_threshold = 70
-        upper_threshold = 250
         logging.info(f"Using default limits {lower_threshold}, {upper_threshold}")
 
 
@@ -482,10 +484,10 @@ def combine_results():
     Function that combines all results into one .csv file
     """
     config = get_config()
-    # create empty results object
+    # create empty results DataFrame
     res = pd.DataFrame({})
 
-    # find all csv files within results folder
+    # find all csv files within results folder for all processed cases
     path = os.path.join(config["results_path"], "finger_data")
     csvs = glob.glob("*" + os.sep+ "*"+ os.sep+ "*.csv", root_dir=path)
     for file in csvs:
@@ -494,21 +496,24 @@ def combine_results():
             tmp_data = pd.read_csv(tmp_path, sep="\t")
             res = pd.concat([res, tmp_data], ignore_index=True)
     # res = res.reset_index()
+    # Drop all columns with no values in at least one of the columns
+    res.dropna()
     logging.info(res.info())
 
     # adopt path for windows systems
-
     bigdata_path = "//gssnas/bigdata"
     res.finger_img_path = res.finger_img_path.replace({'/bigdata': bigdata_path}, regex=True)
     res.total_img_path = res.total_img_path.replace({'/bigdata': bigdata_path}, regex=True)
-
     res.finger_img_path = res.finger_img_path.replace({'/': '\\\\'}, regex=True)
     res.total_img_path = res.total_img_path.replace({'/': '\\\\'}, regex=True)
 
+    # Check if path transformation was successfull
     if os.path.exists(res.finger_img_path[10]):
         logging.info("Path transformation successfull")
     else:
         logging.warning("Path transfomration not successfull")
+    
+    # Save combined pandas dataframe to csv file
     res_path = os.path.join(path, "all_data.csv")
     res.to_csv(res_path, index=False, sep="\t")
     logging.info(f"Saved combined data to {res_path}")
@@ -550,8 +555,12 @@ def get_fingers(img_name, config, case, background_img) -> pd.DataFrame():
         res["d_finger"] = [math.sqrt(4*res["A_finger"][0]/math.pi)]
         res["d_total"] = [math.sqrt(4*res["A_total"][0]/math.pi)]
         res["ratio"] = [ratio]
-        res["thr_low"] = config["limits"][case]["low"]
-        res["thr_high"] = config["limits"][case]["high"]
+        if case not in list(config["limits"].keys()):
+            res["thr_low"] = 70
+            res["thr_high"] = 250
+        else:
+            res["thr_low"] = config["limits"][case]["low"]
+            res["thr_high"] = config["limits"][case]["high"]
         res["finger_img_path"] = [os.path.join(config["data_path"], case, "cleaned_artifacts", img_name + ".png")]
         res["total_img_path"] = [os.path.join(config["data_path"], case, "finger_image", img_name + ".png")]
         logging.info(f"Finger ratio for {img_name}: {ratio}")

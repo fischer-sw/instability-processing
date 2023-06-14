@@ -4,6 +4,7 @@ import sys
 import os
 import re
 import json
+from pathlib import Path
 from methods import get_config, get_all_cases
 
 # setup logging
@@ -36,6 +37,10 @@ def build_job(config, case):
     if os.path.exists(job_dir_path):
         logging.info(f"Job dir for case {case} already exsist")
     else:
+        tmp_path = Path(*Path(job_dir_path).parts[:1])
+        if os.path.exists(tmp_path) is False:
+            logging.error(f"Path {job_dir_path} is not accessable. You might need an active VPN Connection to access the folder")
+            exit()
         logging.info(f"Creating directory for case {case}")
         os.makedirs(job_dir_path)
 
