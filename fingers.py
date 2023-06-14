@@ -547,11 +547,13 @@ def get_fingers(img_name, config, case, background_img) -> pd.DataFrame():
         ratio = round(fing_px_n[1]/cls_px_n[1], 3)
         res["A_finger"] = [fing_px_n[1]]
         res["A_total"] = [cls_px_n[1]]
-        res["finger_img_path"] = [os.path.join(config["data_path"], case, "cleaned_artifacts", img_name + ".png")]
-        res["total_img_path"] = [os.path.join(config["data_path"], case, "finger_image", img_name + ".png")]
         res["d_finger"] = [math.sqrt(4*res["A_finger"][0]/math.pi)]
         res["d_total"] = [math.sqrt(4*res["A_total"][0]/math.pi)]
         res["ratio"] = [ratio]
+        res["thr_low"] = config["limits"][case]["low"]
+        res["thr_high"] = config["limits"][case]["high"]
+        res["finger_img_path"] = [os.path.join(config["data_path"], case, "cleaned_artifacts", img_name + ".png")]
+        res["total_img_path"] = [os.path.join(config["data_path"], case, "finger_image", img_name + ".png")]
         logging.info(f"Finger ratio for {img_name}: {ratio}")
         return pd.DataFrame(res)
     else:
