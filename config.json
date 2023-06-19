@@ -6,15 +6,18 @@
     "results_path": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\image_proc\\results",
     "save_intermediate": true,
     "new_files": true,
-    "debug": false,
+    "debug": true,
     "hpc_job_conf": {
         "wall_time": "06:30:00",
         "cpus": 4
     },
     "images": [
+        40,
+        160,
+        360
     ],
-    "test_cases": [
-        "0.1mmspacer0.010mlmin__2"
+    "cases": [
+        "0.1spacer_0.5ml2"
     ],
     "limits": {
         "c14tab_1ml_0,6mm_spacer": {
@@ -278,7 +281,7 @@
             "high": 235
         }
     },
-    "cases": [
+    "all_cases": [
         "0.6mmspacer0.8mlflow_3",
         "c14tab_1,5ml_0,6mm_spacer_2",
         "0.1mmspacer_0.013mlmin3",

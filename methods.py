@@ -7,10 +7,12 @@ import logging
 from multiprocessing import Pool
 from functools import partial
 from pathlib import Path
+from matplotlib.lines import Line2D
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import cv2
 import SimpleITK as sitk
 
@@ -89,6 +91,73 @@ def rename_cases(config):
         if " " in cas:
             new_cas = cas.replace(" ", "_")
             os.rename(os.path.join(base_path, cas), os.path.join(base_path, new_cas))
+
+def multi_contour_plot():
+    """
+    Function that creates a plot of contours for different time stamps for given cases  
+    """
+    # getting configuration
+    config = get_config()
+
+    if len(config["images"]) == 0:
+        logging.warning("No images set to combine")
+        return
+
+    for cas in config["cases"]:
+        logging.info(f"Creating multi contour image for case {cas} at times {config['images']}")
+
+        # get image filenames
+        images = get_image_files(config, cas, "contours")
+
+        if len(images) == 0:
+            continue
+            
+        times = []
+        for img in images:
+            t_stamp = int(img.split('_')[0])
+            times.append(t_stamp)
+
+        fig, axs = plt.subplots()
+        axs.set_title(f"Contours {cas} at times {times}")
+        cmap = mpl.colormaps['Spectral']
+        
+        counter = 1
+        # loop through all images and combine them into one plot
+        multi_img = np.zeros(read_image(config, "contours", images[0], cas).shape)
+        tmp_legend = []
+        tmp_labels = []
+        for img in images:
+            
+            tmp_image = read_image(config, "contours", img, cas)
+            tmp_image[tmp_image == 255] = counter
+            # multi_img[tmp_image == counter] = counter
+            multi_img += tmp_image
+            counter += 1
+            multi_img = multi_img.copy()
+        
+        axs.imshow(multi_img, cmap=cmap)
+        uni_vals, uni_count = np.unique(multi_img, return_counts=True)
+        counter = 1
+        for img in images:
+            t_stamp = int(img.split('_')[0])
+            tmp_val = 1- (1/(max(uni_vals)) * counter)
+            tmp_legend.append(Line2D([0], [0], color=cmap(tmp_val), lw=4))
+            tmp_labels.append(f"t={t_stamp}")
+            counter += 1
+
+        # axs.legend(tmp_legend, tmp_labels)
+        
+        if config["debug"] is False:
+            plt.close(fig)
+
+        # save image into folder
+        folder = "multi_contour"
+        dir_path = os.path.join(config["results_path"], "final_data", cas, folder)
+        if os.path.exists(dir_path) is False:
+            os.makedirs(dir_path)
+            logging.info(f"Creating dir {folder} for case {cas}")
+        if config["save_intermediate"]:
+            fig.savefig(os.path.join(dir_path, "multi_contours" + ".png"))
 
 def calc_case_ratio():
     """
@@ -220,6 +289,8 @@ def read_image(config, folder, filename, case):
     """
     if folder in ["png_cases", "raw_cases"]:
         dir_path = os.path.join(config["raw_data_path"], folder, case)
+    elif folder in ["contours", "instabilities"]:
+        dir_path = os.path.join(config["results_path"], "final_data", case, folder)
     else:
         dir_path = os.path.join(config["data_path"], case, folder)
     img_path = os.path.join(dir_path, filename + ".png")
@@ -1244,8 +1315,9 @@ def create_animation(config, case, data_folder):
     logging.info(f"Created {data_folder} video for case {case}")
 
 if __name__ == "__main__":
-    config = get_config()
-    calc_case_ratio()
+    # config = get_config()
+    # calc_case_ratio()
     # config = get_config()
     # get_all_cases(config)
     # rename_cases(config)
+    multi_contour_plot()
