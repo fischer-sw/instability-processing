@@ -330,7 +330,16 @@ def process_image(img_name, config, cas, background) -> bool:
     base_array = sitk.GetArrayFromImage(base_img)
 
     # trying background substraction
-    # base_array = base_array - background_array
+    base_array = base_array - background_array
+
+    # inverted_img = sitk.InvertIntensity(
+    #     image1=background-base_img
+    # )
+
+    # base_array = sitk.GetArrayFromImage(inverted_img)
+
+    base_array = np.invert(base_array)
+
     # base_array = background_array - base_array
     
 
@@ -845,6 +854,8 @@ def segment_camera(config, case, base_image, file_name):
     fin_y = 0
     test_y = np.linspace(750,1500,100).round(0)
     test_x = np.linspace(750,1700,100).round(0)
+    test_y = [1100]
+    test_x = [1300]
     for x in test_x:
         for y in test_y:
             test_seed = [(int(x),int(y))]
@@ -1027,7 +1038,7 @@ def segment_camera(config, case, base_image, file_name):
 
 def segment_instability(config, case, base_image, file_name, cam_seg):
     """
-    Function that segements camera from base image
+    Function that segements instability from base image
     """
     status = True
 
@@ -1036,7 +1047,7 @@ def segment_instability(config, case, base_image, file_name, cam_seg):
         backgroundValue=0.0,
         foregroundValue=1.0,
         boundaryToForeground=True,
-        kernelRadius=(1,20)
+        kernelRadius=(1,10)
     )
 
     tmp_image = sitk.BinaryDilate(
@@ -1044,7 +1055,7 @@ def segment_instability(config, case, base_image, file_name, cam_seg):
         backgroundValue=0.0,
         foregroundValue=1.0,
         boundaryToForeground=True,
-        kernelRadius=(1,20)
+        kernelRadius=(1,10)
     )
 
 
@@ -1123,17 +1134,21 @@ def segment_instability(config, case, base_image, file_name, cam_seg):
     else:
         px_val = int(px_val.mean().round())
     logging.debug(f"Insta seed value: {px_val}")
-    lower_limit = 1
+    upper_limit = 255
+    
     if px_val > 230:
         return base_image, False
     else:
-        upper_start = px_val + 20
+        # upper_start = px_val + 5
+        lower_start = px_val - 10
+        
+
     # initial segmentation
     insta_image = sitk.ConnectedThreshold(
             image1=base_image,
             seedList=insta_seed,
-            lower=lower_limit,
-            upper=upper_start,
+            lower=lower_start,
+            upper=upper_limit,
             replaceValue=1
         )
     insta_array = sitk.GetArrayFromImage(insta_image)
@@ -1145,13 +1160,13 @@ def segment_instability(config, case, base_image, file_name, cam_seg):
     px_count_old = px_count[1]
     delta = px_count[1] / px_count_old
     i = 0
-    step = 5
+    step = 1
     tmp_step = 0
     step_thresh = 0.5
-    new_limit = upper_start
+    new_limit = upper_limit
     delta_data = {
         "deltas" : [delta],
-        "limits" : [upper_start+step*i]
+        "limits" : [lower_start-step*i]
     }
 
     # get corner values to check if segementation has run to boundary
@@ -1160,15 +1175,15 @@ def segment_instability(config, case, base_image, file_name, cam_seg):
     ur_cor_val = insta_image.GetPixel(insta_array.shape[1]- px_offset, px_offset)
 
     while tmp_step < step_thresh and (lr_cor_val == 0 or ur_cor_val == 0):
-        new_limit = upper_start+step*i
+        new_limit = lower_start-step*i
         lr_cor_val = insta_image.GetPixel(insta_array.shape[1]- px_offset, insta_array.shape[0]- px_offset)
         ur_cor_val = insta_image.GetPixel(insta_array.shape[1]- px_offset, px_offset)
 
         insta_image = sitk.ConnectedThreshold(
             image1=base_image,
             seedList=insta_seed,
-            lower=lower_limit,
-            upper=new_limit,
+            lower=new_limit,
+            upper=upper_limit,
             replaceValue=1
         )
         px_n, px_count = np.unique(sitk.GetArrayFromImage(insta_image), return_counts=True)
@@ -1192,21 +1207,21 @@ def segment_instability(config, case, base_image, file_name, cam_seg):
         
         # get image for every iteration
          
-        # insta_proc_img = sitk.LabelOverlay(base_image, insta_image)
-        # fig, axs = plt.subplots()
-        # axs.set_title(f"Insta Image {int(file_name.split('_')[0])} limit {new_limit} last_delta {delta.round(2)}")
-        # axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
-        # if config["debug"] is False:
-        #     plt.close(fig)
+        insta_proc_img = sitk.LabelOverlay(base_image, insta_image)
+        fig, axs = plt.subplots()
+        axs.set_title(f"Insta Image {int(file_name.split('_')[0])} limit {new_limit} last_delta {delta.round(2)}")
+        axs.imshow(sitk.GetArrayViewFromImage(insta_proc_img))
+        if config["debug"] is False:
+            plt.close(fig)
         
 
     # final segmentation
-    new_limit = upper_start+step*(i-4)
+    new_limit = lower_start-step*(i-2)
     insta_image = sitk.ConnectedThreshold(
     image1=base_image,
         seedList=insta_seed,
-        lower=lower_limit,
-        upper=new_limit,
+        lower=new_limit,
+        upper=upper_limit,
         replaceValue=1
     )
     seg_array = sitk.GetArrayFromImage(insta_image)
@@ -1352,9 +1367,9 @@ def create_animation(config, case, data_folder):
 
 if __name__ == "__main__":
     # config = get_config()
-    # calc_case_ratio()
+    calc_case_ratio()
     # config = get_config()
     # get_all_cases(config)
     # rename_cases(config)
     # multi_contour_plot()
-    add_area2results()
+    # add_area2results()

@@ -12,10 +12,10 @@
         "cpus": 4
     },
     "images": [
-        
+        100
     ],
     "cases": [
-        "0.75mmspacer0.1ml"
+        "0.1mmspacer_0.4ml"
     ],
     "limits": {
         "c14tab_1ml_0,6mm_spacer": {
