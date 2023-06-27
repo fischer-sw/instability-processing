@@ -1278,7 +1278,43 @@ def make_histo(config, case, folder, name) -> bool:
         plt.close()
     return True
 
+def add_area2results():
+    """
+    Function that adds the area from the segementation algorithm to the finger data results file
+    """
+    config = get_config()
+
+    # read finger data results file
+    res_path = os.path.join(config["results_path"], "finger_data", "all_data.csv")
+    if os.path.exists(res_path) is False:
+        logging.error(f"No results file found at {res_path}. You might need an active VPN connection.")
+    else:
+        res = pd.read_csv(res_path, delimiter='\t')
+    tmp = res.copy()
+    tmp["A_insta_segment"] = np.nan
+    tmp["img_x"] = np.nan
+    tmp["img_y"] = np.nan
+    # loop through each line and try to add area 
+    for idx, row in res.iterrows():
+        # build path to resulting segmentation image
+        tmp_path = os.path.join(config["results_path"], "final_data", row.case, "instabilities", row.img_name + ".png")
+        if os.path.exists(tmp_path):
+            img = read_image(config, "instabilities", str(row.img_name), str(row.case))
+            tmp_vals, tmp_counts = np.unique(img, return_counts=True)
+            tmp.loc[idx, "A_insta_segment"] = float(tmp_counts[0])
+            tmp.loc[idx, "img_x"] = float(img.shape[0])
+            tmp.loc[idx, "img_y"] = float(img.shape[1])
+            logging.info(f"Added {float(tmp_counts[0])} for img {row.img_n} for case {row.case}")
+        else:
+            continue
+    logging.info(tmp.info())
+    tmp.to_csv(res_path, sep="\t")
+    logging.info(f"Saved results at {res_path}")
+
 def remove_empty_folders(path_abs):
+    """
+    Function that removes all empty folders from a path downwards
+    """
     walk = list(os.walk(path_abs))
     for path, _, _ in walk[::-1]:
         if len(os.listdir(path)) == 0:
@@ -1320,4 +1356,5 @@ if __name__ == "__main__":
     # config = get_config()
     # get_all_cases(config)
     # rename_cases(config)
-    multi_contour_plot()
+    # multi_contour_plot()
+    add_area2results()
