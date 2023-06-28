@@ -136,7 +136,32 @@ if __name__ == "__main__":
 
 Then make shure that the `job_template.sh` file does execute the correct script file
 
+```bash
+...
+# choose the correct command here
+
+# calculating region growing method
+python ./methods.py calc_case_ratio >> $LOG_FILE 2>&1
+
+# calculating using intensity window
+# python ./fingers.py proc_cases >> $LOG_FILE 2>&1
+
+Log INFO "JOB FINISH"
+```
+
 Then run the `build_jobs.py` file to build the jobs for the specified cases
+
+For the jobs to be executed correctly u need to login into the HPC Cluster and do the following things
+
+1. Create a symbolic link from your home directory to the place the jobs are stored on bigdata: e.g. `ln -s /bigdata/FWDT/DFischer/image_proc/hpc_jobs insta_hpc`
+
+2. Make the script files executable by running 
+- change dir to hpc_job dir `cd ~/insta_hpc`
+- run command `chmod +x *.sh && dos2unix *.sh`
+
+3. With the `stat.sh` script you can check the queue usage and your running + queued jobs
+
+4. You create and submit the jobs by running `./run_methods.sh`. Choose the option `-a` to run all cases that are not in queue and have not been run yet.  
 
 # Further Development/Improvment
 

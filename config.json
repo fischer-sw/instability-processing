@@ -1,9 +1,9 @@
 {
     "hpc": false,
-    "hpc_job_dir": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\image_proc\\hpc_jobs",
-    "data_path": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\image_proc\\tmp_data",
+    "hpc_job_dir": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\background_subs_test\\hpc_jobs",
+    "data_path": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\background_subs_test\\tmp_data",
     "raw_data_path": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\image_proc\\raw_data",
-    "results_path": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\image_proc\\results",
+    "results_path": "\\\\gssnas\\bigdata\\FWDT\\DFischer\\background_subs_test\\results",
     "save_intermediate": true,
     "new_files": true,
     "debug": true,
